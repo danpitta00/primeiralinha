@@ -148,3 +148,163 @@ class GoogleSheetsService:
                 'margem_por_categoria': margem_por_categoria
             }
         }
+    
+    def get_evolucao_temporal(self):
+        """Retorna evolução temporal das métricas"""
+        if self.data is None:
+            self.fetch_data()
+        
+        df = self.data.copy()
+        
+        # Usa data de entrega como referência
+        df['mes'] = df['data_entrega'].dt.to_period('M')
+        
+        evolucao = df.groupby('mes').agg({
+            'valor': 'sum',
+            'custos': 'sum',
+            'numero_pedido': 'count'
+        }).reset_index()
+        
+        evolucao['lucro'] = evolucao['valor'] - evolucao['custos']
+        evolucao['mes'] = evolucao['mes'].astype(str)
+        
+        return evolucao.to_dict('records')
+    
+    def get_top_produtos(self, limit=10):
+        """Retorna top produtos por receita"""
+        if self.data is None:
+            self.fetch_data()
+        
+        df = self.data
+        
+        # Agrupa por produto/serviço
+        produtos = df.groupby('produto_servico').agg({
+            'valor': 'sum',
+            'custos': 'sum',
+            'numero_pedido': 'count'
+        }).reset_index()
+        
+        produtos['lucro'] = produtos['valor'] - produtos['custos']
+        produtos['margem'] = produtos['lucro'] / produtos['valor'] * 100
+        
+        return produtos.nlargest(limit, 'valor').to_dict('records')
+    
+    def get_top_clientes(self, limit=10):
+        """Retorna top clientes por receita"""
+        if self.data is None:
+            self.fetch_data()
+        
+        df = self.data
+        
+        # Agrupa por cliente
+        clientes = df.groupby('cliente').agg({
+            'valor': 'sum',
+            'custos': 'sum',
+            'numero_pedido': 'count'
+        }).reset_index()
+        
+        clientes['lucro'] = clientes['valor'] - clientes['custos']
+        clientes['ticket_medio'] = clientes['valor'] / clientes['numero_pedido']
+        
+        return clientes.nlargest(limit, 'valor').to_dict('records')
+    
+    def get_analise_locais(self):
+        """Retorna análise por localização"""
+        if self.data is None:
+            self.fetch_data()
+        
+        df = self.data
+        
+        # Agrupa por local
+        locais = df.groupby('local').agg({
+            'valor': 'sum',
+            'custos': 'sum',
+            'numero_pedido': 'count'
+        }).reset_index()
+        
+        locais['lucro'] = locais['valor'] - locais['custos']
+        locais['margem'] = locais['lucro'] / locais['valor'] * 100
+        
+        return locais.to_dict('records')
+    
+    def get_alertas(self):
+        """Retorna alertas importantes"""
+        if self.data is None:
+            self.fetch_data()
+        
+        df = self.data
+        alertas = []
+        
+        # Pagamentos em atraso (mais de 30 dias da entrega)
+        hoje = datetime.now()
+        df_atraso = df[
+            (df['data_pagamento'].isna()) & 
+            (df['data_entrega'] < hoje - timedelta(days=30))
+        ]
+        
+        if len(df_atraso) > 0:
+            valor_atraso = df_atraso['valor'].sum()
+            alertas.append({
+                'tipo': 'pagamento_atraso',
+                'titulo': f'{len(df_atraso)} pagamentos em atraso',
+                'descricao': f'Total de R$ {valor_atraso:,.2f} em atraso',
+                'criticidade': 'alta'
+            })
+        
+        # Eventos próximos (próximos 7 dias)
+        df_proximos = df[
+            (df['data_entrega'] >= hoje) & 
+            (df['data_entrega'] <= hoje + timedelta(days=7))
+        ]
+        
+        if len(df_proximos) > 0:
+            alertas.append({
+                'tipo': 'eventos_proximos',
+                'titulo': f'{len(df_proximos)} eventos nos próximos 7 dias',
+                'descricao': 'Verificar preparação de equipamentos',
+                'criticidade': 'media'
+            })
+        
+        # Margem baixa (menos de 10%)
+        df_margem_baixa = df[
+            (df['valor'] > 0) & 
+            ((df['valor'] - df['custos']) / df['valor'] < 0.1)
+        ]
+        
+        if len(df_margem_baixa) > 0:
+            alertas.append({
+                'tipo': 'margem_baixa',
+                'titulo': f'{len(df_margem_baixa)} pedidos com margem baixa',
+                'descricao': 'Revisar precificação',
+                'criticidade': 'media'
+            })
+        
+        return alertas
+    
+    def get_previsoes(self):
+        """Retorna previsões baseadas em dados históricos"""
+        if self.data is None:
+            self.fetch_data()
+        
+        df = self.data
+        
+        # Receita média mensal
+        df['mes'] = df['data_entrega'].dt.to_period('M')
+        receita_mensal = df.groupby('mes')['valor'].sum()
+        
+        if len(receita_mensal) > 0:
+            media_mensal = receita_mensal.mean()
+            
+            # Projeção próximos 3 meses
+            projecoes = []
+            for i in range(1, 4):
+                mes_futuro = datetime.now() + timedelta(days=30*i)
+                projecoes.append({
+                    'mes': mes_futuro.strftime('%Y-%m'),
+                    'receita_projetada': media_mensal,
+                    'confianca': max(0.5, 1 - (i * 0.1))  # Diminui confiança com tempo
+                })
+            
+            return projecoes
+        
+        return []
