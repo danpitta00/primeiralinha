@@ -2,7 +2,7 @@
 Dashboard Primeira Linha Eventos - Versão Simplificada
 Funciona 100% no Render.com
 """
-
+import os
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
