@@ -97,3 +97,495 @@
                 <canvas id="categoriaChart" width="400" height="200"></canvas>
             </div>
         </div>
+        <!-- Top Produtos e Clientes -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+            <!-- Top Produtos -->
+            <div class="bg-white rounded-xl shadow-lg p-6 card-hover">
+                <h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                    <i class="fas fa-trophy mr-3 text-yellow-600"></i>
+                    Top Produtos/Serviços
+                </h3>
+                <div id="topProdutos" class="space-y-3">
+                    <!-- Top produtos serão inseridos aqui -->
+                </div>
+            </div>
+
+            <!-- Top Clientes -->
+            <div class="bg-white rounded-xl shadow-lg p-6 card-hover">
+                <h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                    <i class="fas fa-users mr-3 text-blue-600"></i>
+                    Top Clientes
+                </h3>
+                <div id="topClientes" class="space-y-3">
+                    <!-- Top clientes serão inseridos aqui -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Gestão de Pedidos -->
+        <div class="bg-white rounded-xl shadow-lg p-6 card-hover">
+            <h3 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                <i class="fas fa-clipboard-list mr-3 text-indigo-600"></i>
+                Gestão de Pedidos
+            </h3>
+            
+            <!-- Filtros -->
+            <div class="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <select id="filtroCategoria" class="border border-gray-300 rounded-lg px-3 py-2">
+                    <option value="">Todas as categorias</option>
+                    <option value="Particular">Particular</option>
+                    <option value="Público Extra">Público Extra</option>
+                </select>
+                <select id="filtroStatus" class="border border-gray-300 rounded-lg px-3 py-2">
+                    <option value="">Todos os status</option>
+                    <option value="pago">Pago</option>
+                    <option value="pendente">Pendente</option>
+                </select>
+                <input type="text" id="filtroCliente" placeholder="Buscar cliente..." 
+                       class="border border-gray-300 rounded-lg px-3 py-2">
+            </div>
+
+            <!-- Tabela de Pedidos -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="text-left p-3 font-semibold">Cliente</th>
+                            <th class="text-left p-3 font-semibold">Categoria</th>
+                            <th class="text-left p-3 font-semibold">Valor</th>
+                            <th class="text-left p-3 font-semibold">Status</th>
+                            <th class="text-left p-3 font-semibold">Data Entrega</th>
+                            <th class="text-left p-3 font-semibold">Local</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabelaPedidos">
+                        <!-- Pedidos serão inseridos aqui -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-8 text-center">
+            <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p class="text-lg font-semibold">Carregando dados...</p>
+        </div>
+    </div>
+
+    <script>
+        // Configuração da API
+        const API_BASE_URL = '/api';
+        
+        // Variáveis globais
+        let dashboardData = null;
+        let pedidosData = [];
+        let evolucaoChart = null;
+        let categoriaChart = null;
+
+        // Função para formatar moeda
+        function formatCurrency(value) {
+            return new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL'
+            }).format(value || 0);
+        }
+
+        // Função para formatar porcentagem
+        function formatPercentage(value) {
+            return `${(value || 0).toFixed(1)}%`;
+        }
+
+        // Função para carregar dados do dashboard
+        async function loadDashboardData() {
+            try {
+                showLoading(true);
+                
+                // Busca dados do dashboard executivo
+                const response = await fetch(`${API_BASE_URL}/analytics/dashboard-executivo`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    dashboardData = data.data;
+                    updateDashboard();
+                } else {
+                    showError('Erro ao carregar dados: ' + data.error);
+                }
+
+                // Busca evolução temporal
+                const evolucaoResponse = await fetch(`${API_BASE_URL}/analytics/evolucao-temporal`);
+                const evolucaoData = await evolucaoResponse.json();
+                
+                if (evolucaoData.success) {
+                    updateEvolucaoChart(evolucaoData.data);
+                }
+
+                // Busca pedidos
+                const pedidosResponse = await fetch(`${API_BASE_URL}/pedidos/`);
+                const pedidosDataResponse = await pedidosResponse.json();
+                
+                if (pedidosDataResponse.success) {
+                    pedidosData = pedidosDataResponse.data;
+                    updatePedidosTable();
+                }
+
+            } catch (error) {
+                showError('Erro de conexão: ' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Função para atualizar dashboard
+        function updateDashboard() {
+            if (!dashboardData) return;
+
+            // Atualiza alertas
+            updateAlertas(dashboardData.alertas);
+            
+            // Atualiza KPIs
+            updateKPIs(dashboardData.kpis);
+            
+            // Atualiza top produtos e clientes
+            updateTopProdutos(dashboardData.top_produtos);
+            updateTopClientes(dashboardData.top_clientes);
+            
+            // Atualiza gráfico de categoria
+            updateCategoriaChart(dashboardData.kpis.categorias);
+            
+            // Atualiza timestamp
+            document.getElementById('lastUpdate').textContent = 
+                new Date(dashboardData.last_update).toLocaleString('pt-BR');
+        }
+
+        // Função para atualizar alertas
+        function updateAlertas(alertas) {
+            const container = document.getElementById('alertas');
+            
+            if (!alertas || alertas.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            const alertasHTML = alertas.map(alerta => {
+                const colorClass = alerta.criticidade === 'alta' ? 'bg-red-100 border-red-400 text-red-700' :
+                                 alerta.criticidade === 'media' ? 'bg-yellow-100 border-yellow-400 text-yellow-700' :
+                                 'bg-blue-100 border-blue-400 text-blue-700';
+                
+                return `
+                    <div class="border-l-4 p-4 ${colorClass} rounded-r-lg">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-exclamation-triangle"></i>
+                            </div>
+                            <div class="ml-3">
+                                <h4 class="font-semibold">${alerta.titulo}</h4>
+                                <p class="text-sm">${alerta.descricao}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = `
+                <h2 class="text-lg font-semibold text-gray-900 mb-4">
+                    <i class="fas fa-exclamation-triangle mr-2 text-red-600"></i>
+                    Alertas Importantes
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    ${alertasHTML}
+                </div>
+            `;
+        }
+        }
+
+        // Função para atualizar KPIs
+        function updateKPIs(kpis) {
+            if (!kpis) return;
+
+            const kpisHTML = `
+                <div class="metric-card green text-white rounded-xl p-6 card-hover">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-white text-opacity-80 text-sm">Receita Total</p>
+                            <p class="text-3xl font-bold">${formatCurrency(kpis.financeiro.total_receita)}</p>
+                            <p class="text-white text-opacity-80 text-xs mt-1">
+                                Ticket médio: ${formatCurrency(kpis.financeiro.ticket_medio)}
+                            </p>
+                        </div>
+                        <i class="fas fa-dollar-sign text-4xl text-white text-opacity-50"></i>
+                    </div>
+                </div>
+
+                <div class="metric-card blue text-white rounded-xl p-6 card-hover">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-white text-opacity-80 text-sm">Lucro Bruto</p>
+                            <p class="text-3xl font-bold">${formatCurrency(kpis.financeiro.lucro_bruto)}</p>
+                            <p class="text-white text-opacity-80 text-xs mt-1">
+                                Margem: ${formatPercentage(kpis.financeiro.margem_lucro)}
+                            </p>
+                        </div>
+                        <i class="fas fa-chart-line text-4xl text-white text-opacity-50"></i>
+                    </div>
+                </div>
+
+                <div class="metric-card purple text-white rounded-xl p-6 card-hover">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-white text-opacity-80 text-sm">Total de Pedidos</p>
+                            <p class="text-3xl font-bold">${kpis.operacional.total_pedidos}</p>
+                            <p class="text-white text-opacity-80 text-xs mt-1">
+                                ${kpis.operacional.pedidos_pagos} pagos, ${kpis.operacional.pedidos_pendentes} pendentes
+                            </p>
+                        </div>
+                        <i class="fas fa-box text-4xl text-white text-opacity-50"></i>
+                    </div>
+                </div>
+
+                <div class="metric-card text-white rounded-xl p-6 card-hover">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-white text-opacity-80 text-sm">Taxa de Inadimplência</p>
+                            <p class="text-3xl font-bold">${formatPercentage(kpis.operacional.taxa_inadimplencia)}</p>
+                            <p class="text-white text-opacity-80 text-xs mt-1">Meta: < 15%</p>
+                        </div>
+                        <i class="fas fa-exclamation-triangle text-4xl text-white text-opacity-50"></i>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('kpis').innerHTML = kpisHTML;
+        }
+
+        // Função para atualizar gráfico de evolução
+        function updateEvolucaoChart(data) {
+            const ctx = document.getElementById('evolucaoChart').getContext('2d');
+            
+            if (evolucaoChart) {
+                evolucaoChart.destroy();
+            }
+
+            evolucaoChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(item => item.mes),
+                    datasets: [
+                        {
+                            label: 'Receita',
+                            data: data.map(item => item.valor),
+                            borderColor: 'rgb(59, 130, 246)',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Custos',
+                            data: data.map(item => item.custos),
+                            borderColor: 'rgb(239, 68, 68)',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Lucro',
+                            data: data.map(item => item.lucro),
+                            borderColor: 'rgb(34, 197, 94)',
+                            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return formatCurrency(value);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Função para atualizar gráfico de categoria
+        function updateCategoriaChart(categorias) {
+            const ctx = document.getElementById('categoriaChart').getContext('2d');
+            
+            if (categoriaChart) {
+                categoriaChart.destroy();
+            }
+
+            const data = Object.entries(categorias.receita_por_categoria);
+
+            categoriaChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.map(([key]) => key),
+                    datasets: [{
+                        data: data.map(([, value]) => value),
+                        backgroundColor: [
+                            '#3B82F6',
+                            '#10B981',
+                            '#F59E0B',
+                            '#EF4444',
+                            '#8B5CF6'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        }
+                    }
+                }
+            });
+        }
+
+        // Função para atualizar top produtos
+        function updateTopProdutos(produtos) {
+            if (!produtos || produtos.length === 0) return;
+
+            const produtosHTML = produtos.slice(0, 5).map((produto, index) => `
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                    <div class="flex items-center">
+                        <div class="w-8 h-8 bg-yellow-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-3">
+                            ${index + 1}
+                        </div>
+                        <div>
+                            <p class="font-medium text-sm truncate max-w-xs">${produto.produto_servico}</p>
+                            <p class="text-xs text-gray-500">${produto.numero_pedido} pedidos</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-semibold text-green-600">${formatCurrency(produto.valor)}</p>
+                        <p class="text-xs text-gray-500">${formatPercentage(produto.margem)} margem</p>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('topProdutos').innerHTML = produtosHTML;
+        }
+
+        // Função para atualizar top clientes
+        function updateTopClientes(clientes) {
+            if (!clientes || clientes.length === 0) return;
+
+            const clientesHTML = clientes.slice(0, 5).map((cliente, index) => `
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+                    <div class="flex items-center">
+                        <div class="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold mr-3">
+                            ${index + 1}
+                        </div>
+                        <div>
+                            <p class="font-medium text-sm">${cliente.cliente}</p>
+                            <p class="text-xs text-gray-500">${cliente.numero_pedido} pedidos</p>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <p class="font-semibold text-blue-600">${formatCurrency(cliente.valor)}</p>
+                        <p class="text-xs text-gray-500">Ticket: ${formatCurrency(cliente.ticket_medio)}</p>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('topClientes').innerHTML = clientesHTML;
+        }
+
+        // Função para atualizar tabela de pedidos
+        function updatePedidosTable(filteredData = null) {
+            const data = filteredData || pedidosData;
+            
+            const pedidosHTML = data.map(pedido => `
+                <tr class="border-b hover:bg-gray-50 transition-colors">
+                    <td class="p-3 font-medium">${pedido.cliente}</td>
+                    <td class="p-3">
+                        <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                            ${pedido.categoria}
+                        </span>
+                    </td>
+                    <td class="p-3 font-semibold text-green-600">${formatCurrency(pedido.valor)}</td>
+                    <td class="p-3">
+                        ${pedido.data_pagamento ? 
+                            '<span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Pago</span>' :
+                            '<span class="px-2 py-1 text-xs rounded-full bg-red-100 text-red-800">Pendente</span>'
+                        }
+                    </td>
+                    <td class="p-3">${pedido.data_entrega || 'Não definida'}</td>
+                    <td class="p-3">${pedido.local || '-'}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('tabelaPedidos').innerHTML = pedidosHTML;
+        }
+
+        // Função para filtrar pedidos
+        function filterPedidos() {
+            const categoria = document.getElementById('filtroCategoria').value;
+            const status = document.getElementById('filtroStatus').value;
+            const cliente = document.getElementById('filtroCliente').value.toLowerCase();
+
+            let filtered = pedidosData;
+
+            if (categoria) {
+                filtered = filtered.filter(p => p.categoria === categoria);
+            }
+
+            if (status) {
+                if (status === 'pago') {
+                    filtered = filtered.filter(p => p.data_pagamento);
+                } else if (status === 'pendente') {
+                    filtered = filtered.filter(p => !p.data_pagamento);
+                }
+            }
+
+            if (cliente) {
+                filtered = filtered.filter(p => 
+                    p.cliente.toLowerCase().includes(cliente)
+                );
+            }
+
+            updatePedidosTable(filtered);
+        }
+
+        // Função para mostrar/ocultar loading
+        function showLoading(show) {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.style.display = show ? 'flex' : 'none';
+        }
+
+        // Função para mostrar erro
+        function showError(message) {
+            alert('Erro: ' + message);
+        }
+
+        // Função para atualizar dados
+        function refreshData() {
+            loadDashboardData();
+        }
+
+        // Event listeners
+        document.getElementById('filtroCategoria').addEventListener('change', filterPedidos);
+        document.getElementById('filtroStatus').addEventListener('change', filterPedidos);
+        document.getElementById('filtroCliente').addEventListener('input', filterPedidos);
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDashboardData();
+            
+            // Atualiza dados a cada 5 minutos
+            setInterval(loadDashboardData, 5 * 60 * 1000);
+        });
+    </script>
+</body>
+</html>
