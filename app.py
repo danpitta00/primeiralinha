@@ -1,6 +1,6 @@
 """
-Dashboard Primeira Linha Eventos - Versão 4.0 + Catálogo de Produtos
-Sistema Streamlit com catálogo separado de produtos (sem quebrar pedidos)
+Dashboard Primeira Linha Eventos - Versão 4.0 + Novo Pedido Completo
+Sistema Streamlit com formulário completo de novo pedido + seleção de produtos catalogados
 """
 
 import streamlit as st
@@ -8,14 +8,14 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import re
 from urllib.parse import quote
 
 # Configuração da página
 st.set_page_config(
     page_title="Dashboard Primeira Linha Eventos v4.0",
-    page_icon="👾",
+    page_icon="🎪",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -117,6 +117,15 @@ st.markdown("""
         color: white;
         margin: 1rem 0;
         border-left: 4px solid #34d399;
+    }
+    
+    .novo-pedido-modal {
+        background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+        padding: 2rem;
+        border-radius: 15px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        margin: 1rem 0;
     }
     
     .footer {
@@ -389,20 +398,199 @@ def calcular_kpis_reais(df):
         'pagamentos_pendentes': pagamentos_pendentes
     }
 
+def formulario_novo_pedido(df_catalogo):
+    """
+    Formulário completo para criar novo pedido com seleção de produtos catalogados
+    """
+    st.markdown("""
+    <div class="novo-pedido-modal">
+        <h2>➕ Criar Novo Pedido</h2>
+        <p>Preencha os dados do novo pedido abaixo:</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    with st.form("novo_pedido_form"):
+        # Informações básicas do pedido
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### 📋 Informações Básicas")
+            cliente_projeto = st.text_input("Cliente/Projeto *", placeholder="Ex: Caixa Econômica Federal")
+            categoria = st.selectbox("Categoria *", ["Particular", "Público Extra", "Corporativo"])
+            local = st.text_input("Local do Evento *", placeholder="Ex: Hotel Ramada")
+            
+        with col2:
+            st.markdown("#### 💰 Valores")
+            valor_pedido = st.number_input("Valor do Pedido (R$) *", min_value=0.0, step=50.0)
+            custos_pedido = st.number_input("Custos do Pedido (R$)", min_value=0.0, step=50.0)
+            diarias_equipe = st.number_input("Diárias de Equipe", min_value=0, step=1)
+        
+        # Seleção de produtos catalogados
+        st.markdown("#### 🛍️ Seleção de Produtos")
+        
+        # Multiselect com produtos do catálogo
+        produtos_disponiveis = df_catalogo['produto'].tolist()
+        produtos_selecionados = st.multiselect(
+            "Selecione os produtos do catálogo:",
+            produtos_disponiveis,
+            help="Escolha um ou mais produtos do catálogo existente"
+        )
+        
+        # Opção para adicionar novo produto
+        st.markdown("##### ➕ Adicionar Novo Produto ao Catálogo")
+        col_novo1, col_novo2, col_novo3 = st.columns(3)
+        
+        with col_novo1:
+            novo_produto = st.text_input("Nome do Novo Produto", placeholder="Ex: Projetor LED")
+        with col_novo2:
+            nova_categoria = st.selectbox("Categoria do Novo Produto", 
+                                        ["Audiovisual", "Estruturas", "Mobiliário", "Entretenimento", 
+                                         "Alimentação", "Utilidades", "Segurança", "Tecnologia", "Sinalização"])
+        with col_novo3:
+            novo_preco = st.number_input("Preço Base (R$)", min_value=0.0, step=10.0)
+        
+        # Descrição completa (opcional)
+        descricao_completa = st.text_area(
+            "Descrição Completa do Pedido (opcional)",
+            placeholder="Descreva detalhes específicos, quantidades, observações especiais...",
+            height=100
+        )
+        
+        # Datas
+        st.markdown("#### 📅 Datas")
+        col_data1, col_data2, col_data3 = st.columns(3)
+        
+        with col_data1:
+            data_entrega = st.date_input("Data de Entrega *", value=date.today())
+        with col_data2:
+            data_recolhimento = st.date_input("Data de Recolhimento", value=date.today() + timedelta(days=1))
+        with col_data3:
+            data_pagamento = st.date_input("Data de Pagamento", value=date.today() + timedelta(days=7))
+        
+        # Status
+        status_pedido = st.selectbox("Status do Pedido", ["Em Andamento", "Confirmado", "Finalizado", "Pendente"])
+        
+        # Cálculos automáticos
+        if valor_pedido > 0:
+            lucro_estimado = valor_pedido - custos_pedido
+            margem_estimada = (lucro_estimado / valor_pedido * 100) if valor_pedido > 0 else 0
+            
+            st.markdown("#### 📊 Cálculos Automáticos")
+            col_calc1, col_calc2 = st.columns(2)
+            
+            with col_calc1:
+                st.metric("Lucro Estimado", f"R$ {lucro_estimado:,.2f}")
+            with col_calc2:
+                st.metric("Margem Estimada", f"{margem_estimada:.1f}%")
+        
+        # Botões de ação
+        col_btn1, col_btn2 = st.columns(2)
+        
+        with col_btn1:
+            submitted = st.form_submit_button("✅ Criar Pedido", use_container_width=True)
+        with col_btn2:
+            cancelled = st.form_submit_button("❌ Cancelar", use_container_width=True)
+        
+        # Processar formulário
+        if submitted:
+            # Validações
+            if not cliente_projeto:
+                st.error("❌ Cliente/Projeto é obrigatório!")
+                return None
+            
+            if valor_pedido <= 0:
+                st.error("❌ Valor do pedido deve ser maior que zero!")
+                return None
+            
+            if not local:
+                st.error("❌ Local do evento é obrigatório!")
+                return None
+            
+            # Construir descrição dos produtos
+            produtos_finais = produtos_selecionados.copy()
+            
+            # Adicionar novo produto se preenchido
+            if novo_produto and novo_preco > 0:
+                produtos_finais.append(novo_produto)
+                st.success(f"✅ Novo produto '{novo_produto}' adicionado ao catálogo!")
+            
+            # Criar descrição completa
+            if produtos_finais:
+                descricao_produtos = ", ".join(produtos_finais)
+                if descricao_completa:
+                    descricao_final = f"{descricao_produtos} - {descricao_completa}"
+                else:
+                    descricao_final = descricao_produtos
+            else:
+                descricao_final = descricao_completa if descricao_completa else "Produtos a definir"
+            
+            # Gerar número do pedido
+            numero_pedido = f"PED{len(st.session_state.get('pedidos_adicionais', [])) + 8:03d}"
+            
+            # Criar novo pedido
+            novo_pedido = {
+                'numero_pedido': numero_pedido,
+                'cliente_projeto': cliente_projeto,
+                'categoria': categoria,
+                'produto_servico_completo': descricao_final,
+                'valor': valor_pedido,
+                'custos_pedido': custos_pedido,
+                'diaria_equipe': diarias_equipe,
+                'local': local,
+                'data_entrega': data_entrega.strftime('%d/%m/%Y'),
+                'data_recolhimento': data_recolhimento.strftime('%d/%m/%Y'),
+                'data_pagamento': data_pagamento.strftime('%d/%m/%Y'),
+                'status': status_pedido
+            }
+            
+            # Salvar no session state
+            if 'pedidos_adicionais' not in st.session_state:
+                st.session_state.pedidos_adicionais = []
+            
+            st.session_state.pedidos_adicionais.append(novo_pedido)
+            
+            # Adicionar novo produto ao catálogo se necessário
+            if novo_produto and novo_preco > 0:
+                if 'produtos_adicionais' not in st.session_state:
+                    st.session_state.produtos_adicionais = []
+                
+                novo_produto_catalogo = {
+                    'produto': novo_produto,
+                    'categoria': nova_categoria,
+                    'preco_base': novo_preco,
+                    'unidade': 'unidade'
+                }
+                st.session_state.produtos_adicionais.append(novo_produto_catalogo)
+            
+            st.success(f"✅ Pedido {numero_pedido} criado com sucesso!")
+            st.balloons()
+            
+            return novo_pedido
+        
+        if cancelled:
+            st.info("❌ Criação de pedido cancelada.")
+            return None
+    
+    return None
+
 def main():
     st.markdown("""
     <div class="main-header">
-        <h1>🎪 Dashboard Primeira Linha Eventos</h1>
-        <h3>Versão 4.0 - Com Catálogo de Produtos</h3>
+        <h1> Dashboard Primeira Linha Eventos</h1>
+        <h3>Versão 4.0 - Com Novo Pedido Completo</h3>
         <p>Gestão Completa de Eventos e Equipamentos</p>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Inicializar session state
+    if 'mostrar_novo_pedido' not in st.session_state:
+        st.session_state.mostrar_novo_pedido = False
     
     with st.sidebar:
         st.markdown("### 🎛️ Controles")
         
         if st.button("➕ Novo Pedido", use_container_width=True):
-            st.success("Funcionalidade de novo pedido será implementada!")
+            st.session_state.mostrar_novo_pedido = not st.session_state.mostrar_novo_pedido
         
         st.markdown("---")
         
@@ -411,8 +599,29 @@ def main():
         status = st.selectbox("Status", ["Todos", "Finalizado", "Em Andamento", "Pendente", "Confirmado"])
     
     # Carregar dados REAIS e catálogo
-    df_pedidos = carregar_dados_reais()
-    df_catalogo = criar_catalogo_produtos()
+    df_pedidos_base = carregar_dados_reais()
+    df_catalogo_base = criar_catalogo_produtos()
+    
+    # Adicionar pedidos e produtos do session state
+    if 'pedidos_adicionais' in st.session_state:
+        df_pedidos_adicionais = pd.DataFrame(st.session_state.pedidos_adicionais)
+        df_pedidos = pd.concat([df_pedidos_base, df_pedidos_adicionais], ignore_index=True)
+    else:
+        df_pedidos = df_pedidos_base
+    
+    if 'produtos_adicionais' in st.session_state:
+        df_produtos_adicionais = pd.DataFrame(st.session_state.produtos_adicionais)
+        df_catalogo = pd.concat([df_catalogo_base, df_produtos_adicionais], ignore_index=True)
+    else:
+        df_catalogo = df_catalogo_base
+    
+    # Mostrar formulário de novo pedido se solicitado
+    if st.session_state.mostrar_novo_pedido:
+        novo_pedido = formulario_novo_pedido(df_catalogo)
+        if novo_pedido:
+            st.session_state.mostrar_novo_pedido = False
+            st.rerun()
+    
     df_frequencia_produtos = analisar_frequencia_produtos(df_pedidos)
     kpis = calcular_kpis_reais(df_pedidos)
     
@@ -430,10 +639,11 @@ def main():
         # Informação sobre o novo sistema
         st.markdown("""
         <div class="catalogo-info">
-            <h4>🆕 NOVO: Sistema de Catálogo de Produtos</h4>
-            <p>• <strong>Pedidos mantidos como estão</strong> - cada linha é um pedido completo</p>
-            <p>• <strong>Produtos catalogados separadamente</strong> - análise de frequência sem quebrar pedidos</p>
-            <p>• <strong>Gráficos baseados em aparições</strong> - quantas vezes cada produto aparece nos pedidos</p>
+            <h4>🆕 NOVO: Formulário Completo de Pedidos</h4>
+            <p>• <strong>Seleção de produtos catalogados</strong> - escolha produtos do catálogo existente</p>
+            <p>• <strong>Adicionar novos produtos</strong> - enriqueça a base de dados automaticamente</p>
+            <p>• <strong>Cálculos automáticos</strong> - margem e lucro calculados em tempo real</p>
+            <p>• <strong>Validações inteligentes</strong> - campos obrigatórios e consistência de dados</p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -643,9 +853,9 @@ def main():
     
     with tab2:
         st.markdown("### 📈 Evolução Temporal")
-        st.info("📅 **Nota:** Com apenas 7 pedidos de junho/2024, gráficos temporais serão mais úteis com mais dados históricos.")
+        st.info("📅 **Nota:** Com apenas alguns pedidos, gráficos temporais serão mais úteis com mais dados históricos.")
         
-        # Análise por mês (mesmo com poucos dados)
+        # Análise por mês
         df_pedidos['data_entrega_dt'] = pd.to_datetime(df_pedidos['data_entrega'], format='%d/%m/%Y', errors='coerce')
         df_pedidos['mes_ano'] = df_pedidos['data_entrega_dt'].dt.to_period('M')
         
@@ -696,7 +906,7 @@ def main():
             st.warning("Não foi possível processar as datas para análise temporal.")
     
     with tab3:
-        st.markdown("### 📋 Gestão de Pedidos - DADOS REAIS")
+        st.markdown("### 📋 Gestão de Pedidos")
         
         # Tabela de pedidos reais (MANTÉM COMO PEDIDOS COMPLETOS)
         st.markdown("#### 📊 Lista de Pedidos Completos")
@@ -714,7 +924,7 @@ def main():
         st.dataframe(df_display, use_container_width=True, height=400)
         
         # Resumo dos pedidos filtrados
-        st.markdown("#### 📈 Resumo dos Dados Reais")
+        st.markdown("#### 📈 Resumo dos Dados")
         
         col_res1, col_res2, col_res3, col_res4 = st.columns(4)
         
@@ -756,16 +966,6 @@ def main():
     
     with tab4:
         st.markdown("### 🛍️ Catálogo de Produtos")
-        
-        st.markdown("""
-        <div class="catalogo-info">
-            <h4>📋 Instruções para Implementação no Google Sheets</h4>
-            <p><strong>1.</strong> Crie uma nova aba chamada "Catálogo" na sua planilha</p>
-            <p><strong>2.</strong> Use as colunas: Produto | Categoria | Preço Base | Unidade</p>
-            <p><strong>3.</strong> Copie os dados da tabela abaixo para a nova aba</p>
-            <p><strong>4.</strong> O dashboard lerá automaticamente os dois locais: Pedidos + Catálogo</p>
-        </div>
-        """, unsafe_allow_html=True)
         
         # Exibir catálogo de produtos
         st.markdown("#### 📦 Catálogo Completo de Produtos")
@@ -839,52 +1039,9 @@ def main():
                 <h2>{produtos_mais_usados}</h2>
             </div>
             """, unsafe_allow_html=True)
-        
-        # Gráfico de produtos por categoria
-        col_graf_cat1, col_graf_cat2 = st.columns(2)
-        
-        with col_graf_cat1:
-            st.markdown("#### 📊 Produtos por Categoria")
-            produtos_por_categoria = df_catalogo['categoria'].value_counts()
-            
-            fig_cat = px.pie(
-                values=produtos_por_categoria.values,
-                names=produtos_por_categoria.index,
-                title='Distribuição de Produtos por Categoria'
-            )
-            fig_cat.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font_color='white',
-                height=400
-            )
-            st.plotly_chart(fig_cat, use_container_width=True)
-        
-        with col_graf_cat2:
-            st.markdown("#### 💰 Faixa de Preços")
-            
-            # Criar faixas de preço
-            df_catalogo['faixa_preco'] = pd.cut(df_catalogo['preco_base'], 
-                                              bins=[0, 50, 150, 300, 1000], 
-                                              labels=['Até R$ 50', 'R$ 51-150', 'R$ 151-300', 'Acima R$ 300'])
-            
-            faixa_preco_count = df_catalogo['faixa_preco'].value_counts()
-            
-            fig_preco = px.bar(
-                x=faixa_preco_count.index,
-                y=faixa_preco_count.values,
-                title='Produtos por Faixa de Preço'
-            )
-            fig_preco.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font_color='white',
-                height=400
-            )
-            st.plotly_chart(fig_preco, use_container_width=True)
     
     with tab5:
-        st.markdown("### ⚠️ Sistema de Alertas - DADOS REAIS")
+        st.markdown("### ⚠️ Sistema de Alertas")
         
         # Alertas baseados nos dados reais
         if kpis['margem_lucro'] < 20:
@@ -911,8 +1068,9 @@ def main():
     st.markdown(f"""
     <div class="footer">
         🎪 Dashboard Primeira Linha Eventos v4.0 | 
-        🛍️ COM CATÁLOGO DE PRODUTOS | 
-        📊 DADOS REAIS da Planilha Google Sheets | 
+        ➕ COM FORMULÁRIO COMPLETO DE NOVO PEDIDO | 
+        🛍️ SELEÇÃO DE PRODUTOS CATALOGADOS | 
+        📊 DADOS REAIS + NOVOS PEDIDOS | 
         Última atualização: {datetime.now().strftime('%d/%m/%Y %H:%M')} | 
         {len(df_pedidos)} pedidos | {len(df_catalogo)} produtos catalogados
     </div>
