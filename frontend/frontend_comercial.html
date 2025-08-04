@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Primeira Linha Eventos - Sistema Comercial</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f1419 0%, #1a1f2e 50%, #0f1419 100%);
+            color: #ffffff;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3730a3 50%, #1e1b4b 100%);
+            padding: 1rem 2rem;
+            box-shadow: 0 4px 20px rgba(30, 58, 138, 0.3);
+            border-bottom: 2px solid #D4AF37;
+        }
+
+        .header h1 {
+            color: #D4AF37;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .header p {
+            color: #e2e8f0;
+            margin-top: 0.5rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #374151;
+        }
+
+        .nav-tab {
+            padding: 1rem 2rem;
+            background: transparent;
+            border: none;
+            color: #9ca3af;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        .nav-tab.active {
+            color: #D4AF37;
+            border-bottom-color: #D4AF37;
+        }
+
+        .nav-tab:hover {
+            color: #D4AF37;
+            background: rgba(212, 175, 55, 0.1);
+        }
+
+        .card {
+            background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            border: 1px solid rgba(212, 175, 55, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .card h2 {
+            color: #D4AF37;
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #e2e8f0;
+            font-weight: 500;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 0.75rem;
+            background: #374151;
+            border: 2px solid #4b5563;
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: #D4AF37;
+            box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.1);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .btn {
+            padding: 0.75rem 2rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #D4AF37 0%, #B8941F 100%);
+            color: #1f2937;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #B8941F 0%, #9A7B1A 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(212, 175, 55, 0.3);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+            color: #ffffff;
+        }
+
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+        }
+
+        .items-container {
+            background: #1f2937;
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            border: 1px solid #374151;
+        }
+
+        .item-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr auto;
+            gap: 1rem;
+            align-items: center;
+            padding: 1rem;
+            background: #374151;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .item-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .btn-remove {
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 0.5rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+
+        .btn-remove:hover {
+            background: #dc2626;
+        }
+
+        .total-section {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3730a3 100%);
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-top: 2rem;
+            text-align: center;
+        }
+
+        .total-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #D4AF37;
+        }
+
+        .success-message {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .error-message {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+            color: white;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #D4AF37;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .item-row {
+                grid-template-columns: 1fr;
+                gap: 0.5rem;
+            }
+            
+            .nav-tabs {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // Configuração da API
+        const API_BASE = 'https://backend-comercial.onrender.com/api';
+
+        // Componente principal
+        function App() {
+            const [activeTab, setActiveTab] = useState('orcamentos');
+            const [produtos, setProdutos] = useState([]);
+            const [clientes, setClientes] = useState([]);
+            const [loading, setLoading] = useState(false);
+            const [message, setMessage] = useState('');
+
+            // Carregar dados iniciais
+            useEffect(() => {
+                carregarProdutos();
+                carregarClientes();
+            }, []);
+
+            const carregarProdutos = async () => {
+                try {
+                    const response = await fetch(`${API_BASE}/produtos`);
+                    const data = await response.json();
+                    setProdutos(data);
+                } catch (error) {
+                    console.error('Erro ao carregar produtos:', error);
+                }
+            };
+
+            const carregarClientes = async () => {
+                try {
+                    const response = await fetch(`${API_BASE}/clientes`);
+                    const data = await response.json();
+                    setClientes(data);
+                } catch (error) {
+                    console.error('Erro ao carregar clientes:', error);
+                }
+            };
+
+            const showMessage = (msg, type = 'success') => {
+                setMessage({ text: msg, type });
+                setTimeout(() => setMessage(''), 5000);
+            };
+
+            return (
+                <div>
+                    <header className="header">
+                        <h1>🎪 PRIMEIRA LINHA EVENTOS</h1>
+                        <p>Sistema Comercial - Gerador de Orçamentos e Pedidos</p>
+                    </header>
+
+                    <div className="container">
+                        {message && (
+                            <div className={message.type === 'success' ? 'success-message' : 'error-message'}>
+                                {message.text}
+                            </div>
+                        )}
+
+                        <nav className="nav-tabs">
+                            <button 
+                                className={`nav-tab ${activeTab === 'orcamentos' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('orcamentos')}
+                            >
+                                📋 Orçamentos
+                            </button>
+                            <button 
+                                className={`nav-tab ${activeTab === 'pedidos' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('pedidos')}
+                            >
+                                📦 Pedidos
+                            </button>
+                            <button 
+                                className={`nav-tab ${activeTab === 'produtos' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('produtos')}
+                            >
+                                🛠️ Produtos
+                            </button>
+                            <button 
+                                className={`nav-tab ${activeTab === 'clientes' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('clientes')}
+                            >
+                                👥 Clientes
+                            </button>
+                        </nav>
+
+                        {activeTab === 'orcamentos' && (
+                            <GeradorOrcamentos 
+                                produtos={produtos} 
+                                clientes={clientes}
+                                showMessage={showMessage}
+                                setLoading={setLoading}
+                            />
+                        )}
+
+                        {activeTab === 'pedidos' && (
+                            <GestorPedidos 
+                                showMessage={showMessage}
+                                setLoading={setLoading}
+                            />
+                        )}
+
+                        {activeTab === 'produtos' && (
+                            <GestorProdutos 
+                                produtos={produtos}
+                                setProdutos={setProdutos}
+                                showMessage={showMessage}
+                                setLoading={setLoading}
+                            />
+                        )}
+
+                        {activeTab === 'clientes' && (
+                            <GestorClientes 
+                                clientes={clientes}
+                                setClientes={setClientes}
+                                showMessage={showMessage}
+                                setLoading={setLoading}
+                            />
+                        )}
+
+                        {loading && <div className="loading">⏳ Processando...</div>}
+                    </div>
+                </div>
+            );
+        }
+
+        // Componente Gerador de Orçamentos
+        function GeradorOrcamentos({ produtos, clientes, showMessage, setLoading }) {
+            const [orcamento, setOrcamento] = useState({
+                nome_cliente: '',
+                email_cliente: '',
+                telefone_cliente: '',
+                evento_descricao: '',
+                local_evento: '',
+                data_evento: '',
+                data_entrega: '',
+                data_recolhimento: '',
+                observacoes: ''
+            });
+
+            const [itens, setItens] = useState([]);
+            const [novoItem, setNovoItem] = useState({
+                produto_nome: '',
+                quantidade: 1,
+                preco_unitario: 0
+            });
+
+            const adicionarItem = () => {
+                if (!novoItem.produto_nome || novoItem.quantidade <= 0 || novoItem.preco_unitario <= 0) {
+                    showMessage('Preencha todos os campos do item', 'error');
+                    return;
+                }
+
+                const item = {
+                    ...novoItem,
+                    preco_total: novoItem.quantidade * novoItem.preco_unitario
+                };
+
+                setItens([...itens, item]);
+                setNovoItem({ produto_nome: '', quantidade: 1, preco_unitario: 0 });
+            };
+
+            const removerItem = (index) => {
+                setItens(itens.filter((_, i) => i !== index));
+            };
+
+            const valorTotal = itens.reduce((total, item) => total + item.preco_total, 0);
+
+            const gerarOrcamento = async () => {
+                if (!orcamento.nome_cliente || itens.length === 0) {
+                    showMessage('Preencha pelo menos o nome do cliente e adicione itens', 'error');
+                    return;
+                }
+
+                setLoading(true);
+                try {
+                    const response = await fetch(`${API_BASE}/orcamentos`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            ...orcamento,
+                            valor_total: valorTotal,
+                            itens: itens
+                        })
+                    });
+
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        showMessage(`Orçamento ${data.numero_orcamento} criado com sucesso!`);
+                        
+                        // Abrir PDF
+                        window.open(`${API_BASE}/orcamentos/${data.id}/pdf`, '_blank');
+                        
+                        // Limpar formulário
+                        setOrcamento({
+                            nome_cliente: '',
+                            email_cliente: '',
+                            telefone_cliente: '',
+                            evento_descricao: '',
+                            local_evento: '',
+                            data_evento: '',
+                            data_entrega: '',
+                            data_recolhimento: '',
+                            observacoes: ''
+                        });
+                        setItens([]);
+                    } else {
+                        showMessage('Erro ao criar orçamento', 'error');
+                    }
+                } catch (error) {
+                    showMessage('Erro de conexão', 'error');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="card">
+                    <h2>📋 Gerador de Orçamentos</h2>
+                    
+                    <div className="form-row">
+                        <div className="form-group">
+                            <label>Nome do Cliente *</label>
+                            <input
+                                type="text"
+                                className="form-control"
+                                value={orcamento.nome_cliente}
+                                onChange={(e) => setOrcamento({...orcamento, nome_cliente: e.target.value})}
+                                placeholder="Nome completo ou empresa"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Email</label>
+                            <input
+                                type="email"
+                                className="form-control"
+                                value={orcamento.email_cliente}
+                                onChange={(e) => setOrcamento({...orcamento, email_cliente: e.target.value})}
+                                placeholder="email@exemplo.com"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="form-row">
+                        <div className="form-group">
+                            <label>Telefone</label>
+                            <input
+                                type="tel"
+                                className="form-control"
+                                value={orcamento.telefone_cliente}
+                                onChange={(e) => setOrcamento({...orcamento, telefone_cliente: e.target.value})}
+                                placeholder="(61) 99999-9999"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Descrição do Evento</label>
+                            <input
+                                type="text"
+                                className="form-control"
+                                value={orcamento.evento_descricao}
+                                onChange={(e) => setOrcamento({...orcamento, evento_descricao: e.target.value})}
+                                placeholder="Ex: Festa de aniversário, evento corporativo"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="form-row">
+                        <div className="form-group">
+                            <label>Local do Evento</label>
+                            <input
+                                type="text"
+                                className="form-control"
+                                value={orcamento.local_evento}
+                                onChange={(e) => setOrcamento({...orcamento, local_evento: e.target.value})}
+                                placeholder="Endereço completo"
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Data do Evento</label>
+                            <input
+                                type="date"
+                                className="form-control"
+                                value={orcamento.data_evento}
+                                onChange={(e) => setOrcamento({...orcamento, data_evento: e.target.value})}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="form-row">
+                        <div className="form-group">
+                            <label>Data de Entrega</label>
+                            <input
+                                type="date"
+                                className="form-control"
+                                value={orcamento.data_entrega}
+                                onChange={(e) => setOrcamento({...orcamento, data_entrega: e.target.value})}
+                            />
+                        </div>
+                        <div className="form-group">
+                            <label>Data de Recolhimento</label>
+                            <input
+                                type="date"
+                                className="form-control"
+                                value={orcamento.data_recolhimento}
+                                onChange={(e) => setOrcamento({...orcamento, data_recolhimento: e.target.value})}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="form-group">
+                        <label>Observações</label>
+                        <textarea
+                            className="form-control"
+                            rows="3"
+                            value={orcamento.observacoes}
+                            onChange={(e) => setOrcamento({...orcamento, observacoes: e.target.value})}
+                            placeholder="Informações adicionais sobre o orçamento"
+                        />
+                    </div>
+
+                    <div className="items-container">
+                        <h3 style={{color: '#D4AF37', marginBottom: '1rem'}}>Itens do Orçamento</h3>
+                        
+                        <div className="item-row">
+                            <input
+                                type="text"
+                                className="form-control"
+                                placeholder="Nome do produto/serviço"
+                                value={novoItem.produto_nome}
+                                onChange={(e) => setNovoItem({...novoItem, produto_nome: e.target.value})}
+                            />
+                            <input
+                                type="number"
+                                className="form-control"
+                                placeholder="Qtd"
+                                min="1"
+                                value={novoItem.quantidade}
+                                onChange={(e) => setNovoItem({...novoItem, quantidade: parseInt(e.target.value) || 1})}
+                            />
+                            <input
+                                type="number"
+                                className="form-control"
+                                placeholder="Preço unitário"
+                                min="0"
+                                step="0.01"
+                                value={novoItem.preco_unitario}
+                                onChange={(e) => setNovoItem({...novoItem, preco_unitario: parseFloat(e.target.value) || 0})}
+                            />
+                            <div style={{color: '#D4AF37', fontWeight: 'bold'}}>
+                                R$ {(novoItem.quantidade * novoItem.preco_unitario).toFixed(2)}
+                            </div>
+                            <button className="btn btn-primary" onClick={adicionarItem}>
+                                Adicionar
+                            </button>
+                        </div>
+
+                        {itens.map((item, index) => (
+                            <div key={index} className="item-row">
+                                <div>{item.produto_nome}</div>
+                                <div>{item.quantidade}</div>
+                                <div>R$ {item.preco_unitario.toFixed(2)}</div>
+                                <div style={{color: '#D4AF37', fontWeight: 'bold'}}>
+                                    R$ {item.preco_total.toFixed(2)}
+                                </div>
+                                <button className="btn-remove" onClick={() => removerItem(index)}>
+                                    Remover
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+
+                    {itens.length > 0 && (
+                        <div className="total-section">
+                            <div>VALOR TOTAL DO ORÇAMENTO</div>
+                            <div className="total-value">R$ {valorTotal.toFixed(2)}</div>
+                        </div>
+                    )}
+
+                    <div style={{textAlign: 'center', marginTop: '2rem'}}>
+                        <button className="btn btn-primary" onClick={gerarOrcamento}>
+                            🎯 Gerar Orçamento PDF
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // Componente Gestor de Pedidos (placeholder)
+        function GestorPedidos({ showMessage, setLoading }) {
+            return (
+                <div className="card">
+                    <h2>📦 Gestão de Pedidos</h2>
+                    <p style={{color: '#9ca3af', textAlign: 'center', padding: '2rem'}}>
+                        Funcionalidade em desenvolvimento...
+                    </p>
+                </div>
+            );
+        }
+
+        // Componente Gestor de Produtos (placeholder)
+        function GestorProdutos({ produtos, setProdutos, showMessage, setLoading }) {
+            return (
+                <div className="card">
+                    <h2>🛠️ Catálogo de Produtos</h2>
+                    <p style={{color: '#9ca3af', textAlign: 'center', padding: '2rem'}}>
+                        Funcionalidade em desenvolvimento...
+                    </p>
+                </div>
+            );
+        }
+
+        // Componente Gestor de Clientes (placeholder)
+        function GestorClientes({ clientes, setClientes, showMessage, setLoading }) {
+            return (
+                <div className="card">
+                    <h2>👥 Gestão de Clientes</h2>
+                    <p style={{color: '#9ca3af', textAlign: 'center', padding: '2rem'}}>
+                        Funcionalidade em desenvolvimento...
+                    </p>
+                </div>
+            );
+        }
+
+        // Renderizar aplicação
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
+
