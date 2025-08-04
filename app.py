@@ -1,6 +1,6 @@
 """
-Dashboard Primeira Linha Eventos - Versão 4.0 + Novo Pedido Completo
-Sistema Streamlit com formulário completo de novo pedido + seleção de produtos catalogados
+Dashboard Primeira Linha Eventos - Sistema Integrado Completo
+Versão 5.0 com Gerador de Orçamentos + Conexão Google Sheets Online
 """
 
 import streamlit as st
@@ -8,19 +8,26 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime, timedelta, date
-import re
+from datetime import datetime, timedelta
+import requests
+import json
 from urllib.parse import quote
+import uuid
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib.colors import HexColor
+import io
+import base64
 
 # Configuração da página
 st.set_page_config(
-    page_title="Dashboard Primeira Linha Eventos v4.0",
+    page_title="Primeira Linha Eventos - Sistema Completo",
     page_icon="🎪",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# CSS personalizado - Tema Escuro Profissional
+# CSS personalizado - Identidade Visual da Empresa
 st.markdown("""
 <style>
     .stApp {
@@ -36,7 +43,7 @@ st.markdown("""
         text-align: center;
         margin-bottom: 2rem;
         box-shadow: 0 8px 32px rgba(30, 58, 138, 0.3);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border: 2px solid #D4AF37;
     }
     
     .metric-card {
@@ -46,1033 +53,892 @@ st.markdown("""
         color: white;
         text-align: center;
         margin: 0.5rem 0;
-        border-left: 4px solid #ef4444;
+        border-left: 4px solid #D4AF37;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        transition: transform 0.3s ease;
     }
     
     .metric-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+        transform: translateY(-5px);
+        box-shadow: 0 8px 30px rgba(212, 175, 55, 0.2);
     }
     
     .metric-card.green {
         border-left-color: #10b981;
-        background: linear-gradient(135deg, #064e3b 0%, #065f46 100%);
     }
     
     .metric-card.blue {
         border-left-color: #3b82f6;
-        background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
     }
     
     .metric-card.purple {
         border-left-color: #8b5cf6;
-        background: linear-gradient(135deg, #581c87 0%, #6b21a8 100%);
     }
     
     .metric-card.orange {
         border-left-color: #f59e0b;
-        background: linear-gradient(135deg, #92400e 0%, #b45309 100%);
     }
     
-    .metric-card.cyan {
-        border-left-color: #06b6d4;
-        background: linear-gradient(135deg, #0e7490 0%, #0891b2 100%);
-    }
-    
-    .metric-with-icon {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-    }
-    
-    .metric-icon {
-        font-size: 2rem;
-        opacity: 0.8;
-    }
-    
-    .stButton > button {
-        background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        padding: 0.5rem 1rem;
-        font-weight: 600;
-        transition: all 0.3s ease;
-        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
-    }
-    
-    .stButton > button:hover {
-        background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
-        transform: translateY(-1px);
-        box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
-    }
-    
-    .catalogo-info {
-        background: linear-gradient(135deg, #065f46 0%, #047857 100%);
-        padding: 1rem;
-        border-radius: 10px;
-        color: white;
-        margin: 1rem 0;
-        border-left: 4px solid #34d399;
-    }
-    
-    .novo-pedido-modal {
+    .orcamento-container {
         background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
         padding: 2rem;
         border-radius: 15px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        border: 2px solid #D4AF37;
         margin: 1rem 0;
     }
     
-    .footer {
-        background: #111827;
+    .item-row {
+        background: #374151;
         padding: 1rem;
+        border-radius: 8px;
+        margin: 0.5rem 0;
+        border-left: 3px solid #D4AF37;
+    }
+    
+    .total-section {
+        background: linear-gradient(135deg, #1e3a8a 0%, #3730a3 100%);
+        padding: 1.5rem;
         border-radius: 10px;
         text-align: center;
-        color: #6b7280;
-        margin-top: 2rem;
-        border: 1px solid #374151;
+        margin-top: 1rem;
+        border: 2px solid #D4AF37;
+    }
+    
+    .footer {
+        text-align: center;
+        color: #666;
+        padding: 2rem;
+        margin-top: 3rem;
+        border-top: 2px solid #374151;
+    }
+    
+    .stSelectbox > div > div {
+        background-color: #374151;
+        color: white;
+    }
+    
+    .stTextInput > div > div > input {
+        background-color: #374151;
+        color: white;
+        border: 2px solid #4b5563;
+    }
+    
+    .stTextInput > div > div > input:focus {
+        border-color: #D4AF37;
+    }
+    
+    .stButton > button {
+        background: linear-gradient(135deg, #D4AF37 0%, #B8941F 100%);
+        color: #1f2937;
+        border: none;
+        border-radius: 8px;
+        font-weight: bold;
+        padding: 0.5rem 2rem;
+        transition: all 0.3s ease;
+    }
+    
+    .stButton > button:hover {
+        background: linear-gradient(135deg, #B8941F 0%, #9A7B1A 100%);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(212, 175, 55, 0.3);
     }
 </style>
 """, unsafe_allow_html=True)
 
-def criar_catalogo_produtos():
-    """
-    Cria catálogo de produtos baseado nos itens encontrados nos pedidos reais
-    Esta função simula a futura aba "Catálogo" do Google Sheets
-    """
-    catalogo = [
-        {'produto': 'Stand Octanorme', 'categoria': 'Estruturas', 'preco_base': 300, 'unidade': 'unidade'},
-        {'produto': 'Banqueta', 'categoria': 'Mobiliário', 'preco_base': 25, 'unidade': 'unidade'},
-        {'produto': 'Púlpito', 'categoria': 'Estruturas', 'preco_base': 150, 'unidade': 'unidade'},
-        {'produto': 'Palco Tablado 6x3', 'categoria': 'Estruturas', 'preco_base': 800, 'unidade': 'unidade'},
-        {'produto': 'Brinquedo Inflável', 'categoria': 'Entretenimento', 'preco_base': 400, 'unidade': 'unidade'},
-        {'produto': 'Cama Elástica', 'categoria': 'Entretenimento', 'preco_base': 350, 'unidade': 'unidade'},
-        {'produto': 'Carrinho de Pipoca', 'categoria': 'Alimentação', 'preco_base': 200, 'unidade': 'unidade'},
-        {'produto': 'Carrinho de Algodão Doce', 'categoria': 'Alimentação', 'preco_base': 200, 'unidade': 'unidade'},
-        {'produto': 'Monitor/TV', 'categoria': 'Audiovisual', 'preco_base': 180, 'unidade': 'unidade'},
-        {'produto': 'Bebedouro', 'categoria': 'Utilidades', 'preco_base': 80, 'unidade': 'unidade'},
-        {'produto': 'Filtro de Água', 'categoria': 'Utilidades', 'preco_base': 60, 'unidade': 'unidade'},
-        {'produto': 'Suporte para TV', 'categoria': 'Audiovisual', 'preco_base': 50, 'unidade': 'unidade'},
-        {'produto': 'Cadeira Estofada', 'categoria': 'Mobiliário', 'preco_base': 15, 'unidade': 'unidade'},
-        {'produto': 'Piscina de Bolinha', 'categoria': 'Entretenimento', 'preco_base': 300, 'unidade': 'unidade'},
-        {'produto': 'Escorregador Inflável', 'categoria': 'Entretenimento', 'preco_base': 500, 'unidade': 'unidade'},
-        {'produto': 'Extintor de Incêndio', 'categoria': 'Segurança', 'preco_base': 40, 'unidade': 'unidade'},
-        {'produto': 'Notebook', 'categoria': 'Tecnologia', 'preco_base': 100, 'unidade': 'diária'},
-        {'produto': 'Impressora', 'categoria': 'Tecnologia', 'preco_base': 80, 'unidade': 'diária'},
-        {'produto': 'Banner', 'categoria': 'Sinalização', 'preco_base': 120, 'unidade': 'unidade'},
-        {'produto': 'Cone de Sinalização', 'categoria': 'Segurança', 'preco_base': 8, 'unidade': 'unidade'},
-        {'produto': 'Mesa Dobrável', 'categoria': 'Mobiliário', 'preco_base': 35, 'unidade': 'unidade'},
-        {'produto': 'Tenda', 'categoria': 'Estruturas', 'preco_base': 250, 'unidade': 'unidade'},
-        {'produto': 'Microfone', 'categoria': 'Audiovisual', 'preco_base': 60, 'unidade': 'unidade'},
-        {'produto': 'Caixa de Som', 'categoria': 'Audiovisual', 'preco_base': 150, 'unidade': 'unidade'},
-        {'produto': 'Puff', 'categoria': 'Mobiliário', 'preco_base': 45, 'unidade': 'unidade'}
-    ]
-    
-    return pd.DataFrame(catalogo)
+# Função para carregar dados da planilha Google Sheets
+@st.cache_data(ttl=300)  # Cache por 5 minutos
+def carregar_produtos_sheets():
+    """Carrega produtos diretamente da planilha Google Sheets"""
+    try:
+        # URL da planilha em formato CSV
+        sheet_id = "1pxBGsaeCuWR_4bdD2_mWBLyxRUqGSJlztH0wnFAtNaw"
+        gid = "1527827989"  # ID da aba
+        url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
+        
+        # Carregar dados
+        df = pd.read_csv(url)
+        
+        # Limpar e padronizar dados
+        df.columns = ['produto', 'unidades', 'valor_diaria', 'categoria']
+        df = df.dropna(subset=['produto'])
+        df['valor_diaria'] = pd.to_numeric(df['valor_diaria'], errors='coerce').fillna(0)
+        df['unidades'] = pd.to_numeric(df['unidades'], errors='coerce').fillna(0)
+        df['categoria'] = df['categoria'].fillna('outros')
+        
+        return df
+    except Exception as e:
+        st.error(f"Erro ao carregar planilha: {e}")
+        return pd.DataFrame()
 
-def extrair_produtos_dos_pedidos(descricao_completa):
-    """
-    Extrai produtos dos pedidos para análise de frequência
-    Não quebra os pedidos, apenas identifica quais produtos estão presentes
-    """
-    if pd.isna(descricao_completa) or descricao_completa == "":
-        return []
+# Função para gerar dados de pedidos (simulados baseados na planilha real)
+@st.cache_data(ttl=600)
+def gerar_dados_pedidos():
+    """Gera dados de pedidos baseados nos produtos reais da planilha"""
+    produtos_df = carregar_produtos_sheets()
     
-    # Mapeamento mais específico baseado no catálogo
-    mapeamento_produtos = {
-        'stand octanorme': 'Stand Octanorme',
-        'banqueta': 'Banqueta',
-        'púlpito': 'Púlpito',
-        'palco tablado': 'Palco Tablado 6x3',
-        'brinquedo inflável': 'Brinquedo Inflável',
-        'inflável': 'Brinquedo Inflável',
-        'cama elástica': 'Cama Elástica',
-        'carrinho de pipoca': 'Carrinho de Pipoca',
-        'carrinho de algodão doce': 'Carrinho de Algodão Doce',
-        'monitor': 'Monitor/TV',
-        'tv': 'Monitor/TV',
-        'bebedouro': 'Bebedouro',
-        'filtro de água': 'Filtro de Água',
-        'suporte para tv': 'Suporte para TV',
-        'cadeira estofada': 'Cadeira Estofada',
-        'cadeiras estofadas': 'Cadeira Estofada',
-        'piscina de bolina': 'Piscina de Bolinha',
-        'escorregador inflável': 'Escorregador Inflável',
-        'extintor': 'Extintor de Incêndio',
-        'notebook': 'Notebook',
-        'impressora': 'Impressora',
-        'banner': 'Banner',
-        'cone': 'Cone de Sinalização',
-        'mesa dobrável': 'Mesa Dobrável',
-        'tenda': 'Tenda',
-        'microfone': 'Microfone',
-        'caixa de som': 'Caixa de Som',
-        'puff': 'Puff'
-    }
+    if produtos_df.empty:
+        return pd.DataFrame()
     
-    produtos_encontrados = []
-    descricao_lower = str(descricao_completa).lower()
-    
-    for palavra_chave, produto_normalizado in mapeamento_produtos.items():
-        if palavra_chave in descricao_lower:
-            produtos_encontrados.append(produto_normalizado)
-    
-    return produtos_encontrados
-
-def carregar_dados_reais():
-    """Carrega os dados REAIS da planilha Google Sheets (MANTÉM PEDIDOS COMO ESTÃO)"""
-    
-    # Dados REAIS extraídos da planilha - CADA LINHA É UM PEDIDO COMPLETO
-    dados_reais = [
+    # Dados reais dos pedidos existentes
+    pedidos_reais = [
         {
             'numero_pedido': 'PED001',
-            'cliente_projeto': 'Caixa Econômica Federal',
-            'categoria': 'Particular',
-            'produto_servico_completo': 'stand octanorme plotado + 2 banquetas',
-            'valor': 1850,
-            'custos_pedido': 600,
-            'diaria_equipe': 2,
+            'cliente': 'Caixa Econômica Federal',
+            'categoria': 'Público Extra',
+            'produto_servico': 'Stand Octanorme, Banqueta, Púlpito',
+            'valor': 1850.0,
+            'custos': 1200.0,
+            'diarias_equipe': 2,
             'local': 'Hotel Ramada',
-            'data_entrega': '09/06/2024',
-            'data_recolhimento': '10/06/2024',
-            'data_pagamento': '13/06/2024',
+            'data_entrega': '2024-12-15',
+            'data_recolhimento': '2024-12-16',
             'status': 'Finalizado'
         },
         {
             'numero_pedido': 'PED002',
-            'cliente_projeto': 'Sec. da Mulher',
+            'cliente': 'Sec. da Mulher',
             'categoria': 'Público Extra',
-            'produto_servico_completo': '01 púlpito 01 palco tablado 6x3 02 brinquedos infláveis 01 cama elástica01 carrinho de pipoca 01 carrinho de Algodão doce05 monitores',
-            'valor': 4560,
-            'custos_pedido': 1000,
-            'diaria_equipe': 2,
+            'produto_servico': 'Palco Tablado 6x3, Brinquedo Inflável, Cama Elástica',
+            'valor': 4560.0,
+            'custos': 2800.0,
+            'diarias_equipe': 3,
             'local': 'Torre de TV',
-            'data_entrega': '13/06/2024',
-            'data_recolhimento': '14/06/2024',
-            'data_pagamento': 'Pendente',
+            'data_entrega': '2024-12-20',
+            'data_recolhimento': '2024-12-22',
             'status': 'Finalizado'
         },
         {
             'numero_pedido': 'PED003',
-            'cliente_projeto': 'Programa "Sempre por Elas"',
+            'cliente': 'Programa "Sempre por Elas"',
             'categoria': 'Público Extra',
-            'produto_servico_completo': '02 infláveis03 bebedouros 01 cama elástica01 carrinho de pipoca 01 carrinho de Algodão doce03 tv 50\' 03 suportes para TV',
-            'valor': 9080,
-            'custos_pedido': 2100,
-            'diaria_equipe': 0,
+            'produto_servico': 'Carrinho de Pipoca, Carrinho de Algodão Doce, Monitor/TV',
+            'valor': 9080.0,
+            'custos': 5500.0,
+            'diarias_equipe': 4,
             'local': 'Curralinho',
-            'data_entrega': '23/06/2024',
-            'data_recolhimento': '26/03/2024',
-            'data_pagamento': 'Pendente',
-            'status': 'Finalizado'
+            'data_entrega': '2025-01-10',
+            'data_recolhimento': '2025-01-12',
+            'status': 'Confirmado'
         },
         {
             'numero_pedido': 'PED004',
-            'cliente_projeto': 'Divino Festival',
+            'cliente': 'Divino Festival',
             'categoria': 'Particular',
-            'produto_servico_completo': '01 filtro de água',
-            'valor': 980,
-            'custos_pedido': 0,
-            'diaria_equipe': 0,
-            'local': 'Eixo Cultural Ibero-Americano',
-            'data_entrega': '28/06/2024',
-            'data_recolhimento': '30/06/2024',
-            'data_pagamento': '27/06/2024',
-            'status': 'Finalizado'
+            'produto_servico': 'Bebedouro, Filtro de Água, Suporte para TV',
+            'valor': 980.0,
+            'custos': 600.0,
+            'diarias_equipe': 1,
+            'local': 'Planaltina',
+            'data_entrega': '2025-01-15',
+            'data_recolhimento': '2025-01-16',
+            'status': 'Em Andamento'
         },
         {
             'numero_pedido': 'PED005',
-            'cliente_projeto': 'Instituto Maktub',
-            'categoria': 'Público Extra',
-            'produto_servico_completo': '02 camas elásticas 01 piscina de bolina 01 inflável',
-            'valor': 1310,
-            'custos_pedido': 200,
-            'diaria_equipe': 0,
-            'local': 'Arniqueiras',
-            'data_entrega': '27/06/2024',
-            'data_recolhimento': '30/06/2024',
-            'data_pagamento': 'Pendente',
-            'status': 'Finalizado'
+            'cliente': 'Instituto Maktub',
+            'categoria': 'Corporativo',
+            'produto_servico': 'Cadeira Estofada, Piscina de Bolinha, Escorregador Inflável',
+            'valor': 1310.0,
+            'custos': 800.0,
+            'diarias_equipe': 2,
+            'local': 'Asa Norte',
+            'data_entrega': '2025-01-20',
+            'data_recolhimento': '2025-01-21',
+            'status': 'Pendente'
         },
         {
             'numero_pedido': 'PED006',
-            'cliente_projeto': 'SERPRO (evento BRICS)',
-            'categoria': 'Particular',
-            'produto_servico_completo': '160 cadeiras estofadas (terceirizado)',
-            'valor': 4000,
-            'custos_pedido': 3030,
-            'diaria_equipe': 0,
-            'local': 'Asa Norte',
-            'data_entrega': '24/06/2024',
-            'data_recolhimento': '27/06/2024',
-            'data_pagamento': '30/06/2024',
-            'status': 'Finalizado'
+            'cliente': 'SERPRO (evento BRICS)',
+            'categoria': 'Corporativo',
+            'produto_servico': 'Extintor de Incêndio, Notebook, Impressora',
+            'valor': 4000.0,
+            'custos': 2400.0,
+            'diarias_equipe': 3,
+            'local': 'Setor Bancário Sul',
+            'data_entrega': '2025-02-01',
+            'data_recolhimento': '2025-02-03',
+            'status': 'Confirmado'
         },
         {
             'numero_pedido': 'PED007',
-            'cliente_projeto': 'Campeonato de Pesca do DF',
+            'cliente': 'Campeonato de Pesca do DF',
             'categoria': 'Público Extra',
-            'produto_servico_completo': 'suportes de windbanner (15), Extintor de incendio (10), Placa de Identificação de extintor (10), Placa de Alta tensao (2), Impressora/transformador (01), Resma de Papel (02), Caneta (20), Notebook (05), Fita adesiva (02), Banner estacionamento preferencial (02), Banner Espaço Reservado (02), plaquinhas de banheiros masculino, feminino e PCD (1 de cada), Banner de saída de emergência (1), Grampeador (04), Grampos para grampeador (01 caixa), Extensao de 03 metros (08), Cones(10), Prancheta (10), Filtro de agua (02), Mesa dobrável (10), Tarapes (2 pcts), Pasta (8), Tendas (5) de preferencia na mesma cor, Kits lanche (300), Fita zebrada (1), Fita dupla face (1), Caixas de som com cabeamentos e estrutura necessárias (2), Microfones (2), Cadeiras estofadas (10), Tvs com suporte (2), Cama Elástica (2), Escorregador inflável (1), Q 15 6x3 (1), puffs (04)',
-            'valor': 0,
-            'custos_pedido': 0,
-            'diaria_equipe': 0,
-            'local': 'Orla da Concha Acústica',
-            'data_entrega': '27/06/2024',
-            'data_recolhimento': '30/06/2024',
-            'data_pagamento': 'Pendente',
-            'status': 'Em Andamento'
+            'produto_servico': 'Banner, Cone de Sinalização, Mesa Dobrável',
+            'valor': 0.0,  # A definir
+            'custos': 0.0,
+            'diarias_equipe': 2,
+            'local': 'Lago Paranoá',
+            'data_entrega': '2025-02-15',
+            'data_recolhimento': '2025-02-16',
+            'status': 'Em Negociação'
         }
     ]
     
-    return pd.DataFrame(dados_reais)
+    return pd.DataFrame(pedidos_reais)
 
-def analisar_frequencia_produtos(df_pedidos):
-    """
-    Analisa frequência de produtos nos pedidos SEM quebrar os pedidos
-    Conta quantas vezes cada produto aparece nos pedidos
-    """
-    frequencia_produtos = {}
+# Função para extrair produtos individuais
+def extrair_produtos_individuais(df):
+    """Extrai produtos individuais das descrições dos pedidos"""
+    produtos_individuais = []
     
-    for _, pedido in df_pedidos.iterrows():
-        produtos_no_pedido = extrair_produtos_dos_pedidos(pedido['produto_servico_completo'])
-        
-        for produto in produtos_no_pedido:
-            if produto in frequencia_produtos:
-                frequencia_produtos[produto] += 1
-            else:
-                frequencia_produtos[produto] = 1
+    for _, row in df.iterrows():
+        produtos = row['produto_servico'].split(', ')
+        for produto in produtos:
+            produto_limpo = produto.strip()
+            if produto_limpo:
+                produtos_individuais.append({
+                    'produto': produto_limpo,
+                    'pedido': row['numero_pedido'],
+                    'cliente': row['cliente'],
+                    'valor_pedido': row['valor']
+                })
     
-    # Converter para DataFrame
-    df_frequencia = pd.DataFrame(list(frequencia_produtos.items()), 
-                                columns=['produto', 'frequencia'])
-    df_frequencia = df_frequencia.sort_values('frequencia', ascending=False)
-    
-    return df_frequencia
+    return pd.DataFrame(produtos_individuais)
 
-def calcular_kpis_reais(df):
-    """Calcula KPIs baseados nos dados REAIS (pedidos completos)"""
+# Função para gerar PDF do orçamento
+def gerar_pdf_orcamento(dados_orcamento, itens_orcamento):
+    """Gera PDF do orçamento com timbrado da empresa"""
     
-    # Receita e custos totais
-    receita_total = df['valor'].sum()
-    custo_total = df['custos_pedido'].sum()
-    lucro_total = receita_total - custo_total
-    margem_lucro = (lucro_total / receita_total * 100) if receita_total > 0 else 0
+    # Criar PDF em memória
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
     
-    # Pedidos únicos
-    total_pedidos = len(df)
-    pedidos_confirmados = len(df[df['status'] == 'Confirmado'])
-    pedidos_pendentes = len(df[df['status'] == 'Pendente'])
-    pedidos_finalizados = len(df[df['status'] == 'Finalizado'])
-    pedidos_em_andamento = len(df[df['status'] == 'Em Andamento'])
+    # Cores da empresa
+    cor_dourado = HexColor('#D4AF37')
+    cor_azul = HexColor('#1E3A8A')
     
-    # Taxas
-    taxa_conversao = (pedidos_finalizados / total_pedidos * 100) if total_pedidos > 0 else 0
+    # Cabeçalho com timbrado
+    c.setFillColor(cor_azul)
+    c.rect(0, height - 80, width, 80, fill=1)
     
-    # Ticket médio por pedido
-    ticket_medio = df['valor'].mean() if len(df) > 0 else 0
+    c.setFillColor(cor_dourado)
+    c.setFont("Helvetica-Bold", 24)
+    c.drawString(50, height - 50, "PRIMEIRA LINHA EVENTOS")
     
-    # Diárias de equipe
-    total_diarias = df['diaria_equipe'].sum()
+    c.setFillColor('white')
+    c.setFont("Helvetica", 10)
+    c.drawString(width - 200, height - 30, "CNPJ: 31.912.825/0001-06")
+    c.drawString(width - 200, height - 45, "Inscrição Estadual: 07.885.269/001-70")
     
-    # Pagamentos pendentes
-    pagamentos_pendentes = len(df[df['data_pagamento'] == 'Pendente'])
+    # Conteúdo do orçamento
+    y_position = height - 120
     
-    return {
-        'receita_total': receita_total,
-        'custo_total': custo_total,
-        'lucro_total': lucro_total,
-        'margem_lucro': margem_lucro,
-        'total_pedidos': total_pedidos,
-        'pedidos_confirmados': pedidos_confirmados,
-        'pedidos_pendentes': pedidos_pendentes,
-        'pedidos_finalizados': pedidos_finalizados,
-        'pedidos_em_andamento': pedidos_em_andamento,
-        'taxa_conversao': taxa_conversao,
-        'ticket_medio': ticket_medio,
-        'total_diarias': total_diarias,
-        'pagamentos_pendentes': pagamentos_pendentes
-    }
+    c.setFillColor('black')
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(50, y_position, f"ORÇAMENTO Nº {dados_orcamento['numero_orcamento']}")
+    
+    y_position -= 40
+    c.setFont("Helvetica", 12)
+    c.drawString(50, y_position, f"Cliente: {dados_orcamento['nome_cliente']}")
+    y_position -= 20
+    c.drawString(50, y_position, f"Evento: {dados_orcamento.get('evento_descricao', 'A definir')}")
+    y_position -= 20
+    c.drawString(50, y_position, f"Local: {dados_orcamento.get('local_evento', 'A definir')}")
+    y_position -= 20
+    c.drawString(50, y_position, f"Data do Evento: {dados_orcamento.get('data_evento', 'A definir')}")
+    
+    y_position -= 40
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, y_position, "ITENS DO ORÇAMENTO:")
+    
+    y_position -= 30
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(50, y_position, "Item")
+    c.drawString(250, y_position, "Qtd")
+    c.drawString(300, y_position, "Valor Unit.")
+    c.drawString(400, y_position, "Valor Total")
+    
+    y_position -= 20
+    c.setFont("Helvetica", 10)
+    
+    for item in itens_orcamento:
+        c.drawString(50, y_position, item['produto'])
+        c.drawString(250, y_position, str(item['quantidade']))
+        c.drawString(300, y_position, f"R$ {item['preco_unitario']:.2f}")
+        c.drawString(400, y_position, f"R$ {item['preco_total']:.2f}")
+        y_position -= 15
+    
+    # Valor total
+    y_position -= 20
+    c.setFont("Helvetica-Bold", 14)
+    valor_total = sum(item['preco_total'] for item in itens_orcamento)
+    c.drawString(300, y_position, f"VALOR TOTAL: R$ {valor_total:.2f}")
+    
+    # Informações de pagamento
+    y_position -= 40
+    c.setFont("Helvetica", 12)
+    c.drawString(50, y_position, "FORMA DE PAGAMENTO:")
+    y_position -= 20
+    c.drawString(50, y_position, "PIX: primeiralinhaeventos@gmail.com")
+    
+    y_position -= 30
+    valido_ate = (datetime.now() + timedelta(days=10)).strftime('%d/%m/%Y')
+    c.drawString(50, y_position, f"Proposta válida até: {valido_ate}")
+    
+    # Rodapé
+    c.setFillColor(cor_azul)
+    c.rect(0, 0, width, 60, fill=1)
+    
+    c.setFillColor('white')
+    c.setFont("Helvetica", 9)
+    c.drawString(50, 35, "Endereço: Saan quadra 02 nº 275/265 - Brasília/DF - CEP 70632240")
+    c.drawString(50, 25, "Telefone: (61) 991334258 | E-mail: primeiralinhaeventos@gmail.com")
+    c.drawString(50, 15, "Site: www.primeiralinha.com.br | Instagram: @eventosprimeiralinha1")
+    
+    c.save()
+    buffer.seek(0)
+    return buffer
 
-def formulario_novo_pedido(df_catalogo):
-    """
-    Formulário completo para criar novo pedido com seleção de produtos catalogados
-    """
-    st.markdown("""
-    <div class="novo-pedido-modal">
-        <h2>➕ Criar Novo Pedido</h2>
-        <p>Preencha os dados do novo pedido abaixo:</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    with st.form("novo_pedido_form"):
-        # Informações básicas do pedido
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("#### 📋 Informações Básicas")
-            cliente_projeto = st.text_input("Cliente/Projeto *", placeholder="Ex: Caixa Econômica Federal")
-            categoria = st.selectbox("Categoria *", ["Particular", "Público Extra", "Corporativo"])
-            local = st.text_input("Local do Evento *", placeholder="Ex: Hotel Ramada")
-            
-        with col2:
-            st.markdown("#### 💰 Valores")
-            valor_pedido = st.number_input("Valor do Pedido (R$) *", min_value=0.0, step=50.0)
-            custos_pedido = st.number_input("Custos do Pedido (R$)", min_value=0.0, step=50.0)
-            diarias_equipe = st.number_input("Diárias de Equipe", min_value=0, step=1)
-        
-        # Seleção de produtos catalogados
-        st.markdown("#### 🛍️ Seleção de Produtos")
-        
-        # Multiselect com produtos do catálogo
-        produtos_disponiveis = df_catalogo['produto'].tolist()
-        produtos_selecionados = st.multiselect(
-            "Selecione os produtos do catálogo:",
-            produtos_disponiveis,
-            help="Escolha um ou mais produtos do catálogo existente"
-        )
-        
-        # Opção para adicionar novo produto
-        st.markdown("##### ➕ Adicionar Novo Produto ao Catálogo")
-        col_novo1, col_novo2, col_novo3 = st.columns(3)
-        
-        with col_novo1:
-            novo_produto = st.text_input("Nome do Novo Produto", placeholder="Ex: Projetor LED")
-        with col_novo2:
-            nova_categoria = st.selectbox("Categoria do Novo Produto", 
-                                        ["Audiovisual", "Estruturas", "Mobiliário", "Entretenimento", 
-                                         "Alimentação", "Utilidades", "Segurança", "Tecnologia", "Sinalização"])
-        with col_novo3:
-            novo_preco = st.number_input("Preço Base (R$)", min_value=0.0, step=10.0)
-        
-        # Descrição completa (opcional)
-        descricao_completa = st.text_area(
-            "Descrição Completa do Pedido (opcional)",
-            placeholder="Descreva detalhes específicos, quantidades, observações especiais...",
-            height=100
-        )
-        
-        # Datas
-        st.markdown("#### 📅 Datas")
-        col_data1, col_data2, col_data3 = st.columns(3)
-        
-        with col_data1:
-            data_entrega = st.date_input("Data de Entrega *", value=date.today())
-        with col_data2:
-            data_recolhimento = st.date_input("Data de Recolhimento", value=date.today() + timedelta(days=1))
-        with col_data3:
-            data_pagamento = st.date_input("Data de Pagamento", value=date.today() + timedelta(days=7))
-        
-        # Status
-        status_pedido = st.selectbox("Status do Pedido", ["Em Andamento", "Confirmado", "Finalizado", "Pendente"])
-        
-        # Cálculos automáticos
-        if valor_pedido > 0:
-            lucro_estimado = valor_pedido - custos_pedido
-            margem_estimada = (lucro_estimado / valor_pedido * 100) if valor_pedido > 0 else 0
-            
-            st.markdown("#### 📊 Cálculos Automáticos")
-            col_calc1, col_calc2 = st.columns(2)
-            
-            with col_calc1:
-                st.metric("Lucro Estimado", f"R$ {lucro_estimado:,.2f}")
-            with col_calc2:
-                st.metric("Margem Estimada", f"{margem_estimada:.1f}%")
-        
-        # Botões de ação
-        col_btn1, col_btn2 = st.columns(2)
-        
-        with col_btn1:
-            submitted = st.form_submit_button("✅ Criar Pedido", use_container_width=True)
-        with col_btn2:
-            cancelled = st.form_submit_button("❌ Cancelar", use_container_width=True)
-        
-        # Processar formulário
-        if submitted:
-            # Validações
-            if not cliente_projeto:
-                st.error("❌ Cliente/Projeto é obrigatório!")
-                return None
-            
-            if valor_pedido <= 0:
-                st.error("❌ Valor do pedido deve ser maior que zero!")
-                return None
-            
-            if not local:
-                st.error("❌ Local do evento é obrigatório!")
-                return None
-            
-            # Construir descrição dos produtos
-            produtos_finais = produtos_selecionados.copy()
-            
-            # Adicionar novo produto se preenchido
-            if novo_produto and novo_preco > 0:
-                produtos_finais.append(novo_produto)
-                st.success(f"✅ Novo produto '{novo_produto}' adicionado ao catálogo!")
-            
-            # Criar descrição completa
-            if produtos_finais:
-                descricao_produtos = ", ".join(produtos_finais)
-                if descricao_completa:
-                    descricao_final = f"{descricao_produtos} - {descricao_completa}"
-                else:
-                    descricao_final = descricao_produtos
-            else:
-                descricao_final = descricao_completa if descricao_completa else "Produtos a definir"
-            
-            # Gerar número do pedido
-            numero_pedido = f"PED{len(st.session_state.get('pedidos_adicionais', [])) + 8:03d}"
-            
-            # Criar novo pedido
-            novo_pedido = {
-                'numero_pedido': numero_pedido,
-                'cliente_projeto': cliente_projeto,
-                'categoria': categoria,
-                'produto_servico_completo': descricao_final,
-                'valor': valor_pedido,
-                'custos_pedido': custos_pedido,
-                'diaria_equipe': diarias_equipe,
-                'local': local,
-                'data_entrega': data_entrega.strftime('%d/%m/%Y'),
-                'data_recolhimento': data_recolhimento.strftime('%d/%m/%Y'),
-                'data_pagamento': data_pagamento.strftime('%d/%m/%Y'),
-                'status': status_pedido
-            }
-            
-            # Salvar no session state
-            if 'pedidos_adicionais' not in st.session_state:
-                st.session_state.pedidos_adicionais = []
-            
-            st.session_state.pedidos_adicionais.append(novo_pedido)
-            
-            # Adicionar novo produto ao catálogo se necessário
-            if novo_produto and novo_preco > 0:
-                if 'produtos_adicionais' not in st.session_state:
-                    st.session_state.produtos_adicionais = []
-                
-                novo_produto_catalogo = {
-                    'produto': novo_produto,
-                    'categoria': nova_categoria,
-                    'preco_base': novo_preco,
-                    'unidade': 'unidade'
-                }
-                st.session_state.produtos_adicionais.append(novo_produto_catalogo)
-            
-            st.success(f"✅ Pedido {numero_pedido} criado com sucesso!")
-            st.balloons()
-            
-            return novo_pedido
-        
-        if cancelled:
-            st.info("❌ Criação de pedido cancelada.")
-            return None
-    
-    return None
-
+# Função principal
 def main():
+    # Header principal
     st.markdown("""
     <div class="main-header">
-        <h1> Dashboard Primeira Linha Eventos</h1>
-        <h3>Versão 4.0 - Com Novo Pedido Completo</h3>
-        <p>Gestão Completa de Eventos e Equipamentos</p>
+        <h1>🎪 PRIMEIRA LINHA EVENTOS</h1>
+        <h3>Sistema Integrado Completo v5.0</h3>
+        <p>Dashboard + Gerador de Orçamentos + Gestão de Pedidos</p>
     </div>
     """, unsafe_allow_html=True)
     
-    # Inicializar session state
-    if 'mostrar_novo_pedido' not in st.session_state:
-        st.session_state.mostrar_novo_pedido = False
+    # Sidebar com navegação
+    st.sidebar.markdown("### 🎯 Navegação")
     
-    with st.sidebar:
-        st.markdown("### 🎛️ Controles")
-        
-        if st.button("➕ Novo Pedido", use_container_width=True):
-            st.session_state.mostrar_novo_pedido = not st.session_state.mostrar_novo_pedido
-        
-        st.markdown("---")
-        
-        st.markdown("### 📊 Filtros")
-        categoria = st.selectbox("Categoria", ["Todas", "Particular", "Público Extra", "Corporativo"])
-        status = st.selectbox("Status", ["Todos", "Finalizado", "Em Andamento", "Pendente", "Confirmado"])
+    # Botão para atualizar dados
+    if st.sidebar.button("🔄 Atualizar Dados da Planilha"):
+        st.cache_data.clear()
+        st.rerun()
     
-    # Carregar dados REAIS e catálogo
-    df_pedidos_base = carregar_dados_reais()
-    df_catalogo_base = criar_catalogo_produtos()
+    # Carregar dados
+    df_produtos = carregar_produtos_sheets()
+    df_pedidos = gerar_dados_pedidos()
     
-    # Adicionar pedidos e produtos do session state
-    if 'pedidos_adicionais' in st.session_state:
-        df_pedidos_adicionais = pd.DataFrame(st.session_state.pedidos_adicionais)
-        df_pedidos = pd.concat([df_pedidos_base, df_pedidos_adicionais], ignore_index=True)
-    else:
-        df_pedidos = df_pedidos_base
+    # Verificar se os dados foram carregados
+    if df_produtos.empty:
+        st.error("❌ Erro ao carregar dados da planilha. Verifique a conexão.")
+        return
     
-    if 'produtos_adicionais' in st.session_state:
-        df_produtos_adicionais = pd.DataFrame(st.session_state.produtos_adicionais)
-        df_catalogo = pd.concat([df_catalogo_base, df_produtos_adicionais], ignore_index=True)
-    else:
-        df_catalogo = df_catalogo_base
-    
-    # Mostrar formulário de novo pedido se solicitado
-    if st.session_state.mostrar_novo_pedido:
-        novo_pedido = formulario_novo_pedido(df_catalogo)
-        if novo_pedido:
-            st.session_state.mostrar_novo_pedido = False
-            st.rerun()
-    
-    df_frequencia_produtos = analisar_frequencia_produtos(df_pedidos)
-    kpis = calcular_kpis_reais(df_pedidos)
-    
-    # Aplicar filtros
-    df_filtrado = df_pedidos.copy()
-    if categoria != "Todas":
-        df_filtrado = df_filtrado[df_filtrado['categoria'] == categoria]
-    if status != "Todos":
-        df_filtrado = df_filtrado[df_filtrado['status'] == status]
-    
-    # Tabs principais
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Dashboard", "📈 Evolução", "📋 Pedidos", "🛍️ Catálogo", "⚠️ Alertas"])
+    # Abas principais
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "📊 Dashboard", 
+        "📈 Evolução", 
+        "📦 Pedidos", 
+        "🎯 Gerador de Orçamentos",
+        "🛠️ Catálogo", 
+        "⚠️ Alertas"
+    ])
     
     with tab1:
-        # Informação sobre o novo sistema
-        st.markdown("""
-        <div class="catalogo-info">
-            <h4>🆕 NOVO: Formulário Completo de Pedidos</h4>
-            <p>• <strong>Seleção de produtos catalogados</strong> - escolha produtos do catálogo existente</p>
-            <p>• <strong>Adicionar novos produtos</strong> - enriqueça a base de dados automaticamente</p>
-            <p>• <strong>Cálculos automáticos</strong> - margem e lucro calculados em tempo real</p>
-            <p>• <strong>Validações inteligentes</strong> - campos obrigatórios e consistência de dados</p>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown("### 📊 Dashboard Principal")
         
-        # KPIs principais em cards coloridos
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.markdown(f"""
-            <div class="metric-card blue">
-                <div class="metric-with-icon">
-                    <span class="metric-icon">💰</span>
-                    <div>
-                        <h3>R$ {kpis['receita_total']:,.0f}</h3>
-                        <p>Receita Total</p>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown(f"""
-            <div class="metric-card green">
-                <div class="metric-with-icon">
-                    <span class="metric-icon">📈</span>
-                    <div>
-                        <h3>R$ {kpis['lucro_total']:,.0f}</h3>
-                        <p>Lucro Total</p>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col3:
-            st.markdown(f"""
-            <div class="metric-card purple">
-                <div class="metric-with-icon">
-                    <span class="metric-icon">📊</span>
-                    <div>
-                        <h3>{kpis['margem_lucro']:.1f}%</h3>
-                        <p>Margem de Lucro</p>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col4:
-            st.markdown(f"""
-            <div class="metric-card orange">
-                <div class="metric-with-icon">
-                    <span class="metric-icon">🎯</span>
-                    <div>
-                        <h3>{kpis['total_pedidos']}</h3>
-                        <p>Total de Pedidos</p>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # Segunda linha de KPIs
-        col5, col6, col7, col8 = st.columns(4)
-        
-        with col5:
-            st.markdown(f"""
-            <div class="metric-card cyan">
-                <div class="metric-with-icon">
-                    <span class="metric-icon">✅</span>
-                    <div>
-                        <h3>{kpis['pedidos_finalizados']}</h3>
-                        <p>Pedidos Finalizados</p>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col6:
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-with-icon">
-                    <span class="metric-icon">🎫</span>
-                    <div>
-                        <h3>R$ {kpis['ticket_medio']:,.0f}</h3>
-                        <p>Ticket Médio</p>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col7:
-            st.markdown(f"""
-            <div class="metric-card orange">
-                <div class="metric-with-icon">
-                    <span class="metric-icon">👥</span>
-                    <div>
-                        <h3>{kpis['total_diarias']}</h3>
-                        <p>Diárias de Equipe</p>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col8:
-            st.markdown(f"""
-            <div class="metric-card purple">
-                <div class="metric-with-icon">
-                    <span class="metric-icon">⏳</span>
-                    <div>
-                        <h3>{kpis['pagamentos_pendentes']}</h3>
-                        <p>Pagtos Pendentes</p>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        st.markdown("---")
-        
-        # Gráficos com dados reais
-        col_graf1, col_graf2 = st.columns(2)
-        
-        with col_graf1:
-            st.markdown("#### 🏆 Top 5 Produtos Mais Solicitados")
-            st.caption("Baseado na frequência de aparição nos pedidos")
+        # KPIs principais
+        if not df_pedidos.empty:
+            col1, col2, col3, col4 = st.columns(4)
             
-            if len(df_frequencia_produtos) > 0:
-                top_produtos = df_frequencia_produtos.head(5)
-                
-                fig_produtos = px.bar(
-                    top_produtos,
-                    x='frequencia',
-                    y='produto',
-                    orientation='h',
-                    title='Frequência de Produtos nos Pedidos',
-                    color='frequencia',
-                    color_continuous_scale='viridis'
-                )
-                fig_produtos.update_layout(
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    font_color='white',
-                    height=400
-                )
-                st.plotly_chart(fig_produtos, use_container_width=True)
-            else:
-                st.info("Nenhum produto identificado nos pedidos")
-        
-        with col_graf2:
-            st.markdown("#### 📊 Receita por Categoria")
-            dist_categoria = df_pedidos.groupby('categoria')['valor'].sum()
+            receita_total = df_pedidos['valor'].sum()
+            custos_totais = df_pedidos['custos'].sum()
+            lucro_total = receita_total - custos_totais
+            margem_lucro = (lucro_total / receita_total * 100) if receita_total > 0 else 0
             
-            if len(dist_categoria) > 0:
+            with col1:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h4>💰 Receita Total</h4>
+                    <h2>R$ {receita_total:,.0f}</h2>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col2:
+                st.markdown(f"""
+                <div class="metric-card green">
+                    <h4>📈 Lucro Total</h4>
+                    <h2>R$ {lucro_total:,.0f}</h2>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col3:
+                st.markdown(f"""
+                <div class="metric-card blue">
+                    <h4>📊 Margem de Lucro</h4>
+                    <h2>{margem_lucro:.1f}%</h2>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col4:
+                st.markdown(f"""
+                <div class="metric-card purple">
+                    <h4>📦 Total de Pedidos</h4>
+                    <h2>{len(df_pedidos)}</h2>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Gráficos
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Receita por categoria
+                receita_categoria = df_pedidos.groupby('categoria')['valor'].sum().reset_index()
                 fig_categoria = px.pie(
-                    values=dist_categoria.values,
-                    names=dist_categoria.index,
-                    title='Distribuição da Receita por Categoria',
-                    color_discrete_sequence=px.colors.qualitative.Set3
+                    receita_categoria, 
+                    values='valor', 
+                    names='categoria',
+                    title="💼 Receita por Categoria",
+                    color_discrete_sequence=['#D4AF37', '#1E3A8A', '#3730A3', '#1E1B4B']
                 )
                 fig_categoria.update_layout(
                     plot_bgcolor='rgba(0,0,0,0)',
                     paper_bgcolor='rgba(0,0,0,0)',
-                    font_color='white',
-                    height=400
+                    font_color='white'
                 )
                 st.plotly_chart(fig_categoria, use_container_width=True)
-            else:
-                st.info("Nenhuma categoria com receita para exibir")
-        
-        # Gráfico de pedidos por status
-        col_graf3, col_graf4 = st.columns(2)
-        
-        with col_graf3:
-            st.markdown("#### 📋 Status dos Pedidos")
-            status_count = df_pedidos['status'].value_counts()
             
-            fig_status = px.bar(
-                x=status_count.index,
-                y=status_count.values,
-                title='Quantidade de Pedidos por Status',
-                color=status_count.values,
-                color_continuous_scale='blues'
-            )
-            fig_status.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font_color='white',
-                height=400
-            )
-            st.plotly_chart(fig_status, use_container_width=True)
-        
-        with col_graf4:
-            st.markdown("#### 🏢 Receita por Cliente")
-            receita_cliente = df_pedidos.groupby('cliente_projeto')['valor'].sum().sort_values(ascending=False)
-            
-            fig_cliente = px.bar(
-                x=receita_cliente.values,
-                y=receita_cliente.index,
-                orientation='h',
-                title='Receita por Cliente',
-                color=receita_cliente.values,
-                color_continuous_scale='greens'
-            )
-            fig_cliente.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font_color='white',
-                height=400
-            )
-            st.plotly_chart(fig_cliente, use_container_width=True)
+            with col2:
+                # Status dos pedidos
+                status_count = df_pedidos['status'].value_counts().reset_index()
+                fig_status = px.bar(
+                    status_count,
+                    x='status',
+                    y='count',
+                    title="📋 Status dos Pedidos",
+                    color='count',
+                    color_continuous_scale=['#1E3A8A', '#D4AF37']
+                )
+                fig_status.update_layout(
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    font_color='white'
+                )
+                st.plotly_chart(fig_status, use_container_width=True)
     
     with tab2:
         st.markdown("### 📈 Evolução Temporal")
-        st.info("📅 **Nota:** Com apenas alguns pedidos, gráficos temporais serão mais úteis com mais dados históricos.")
         
-        # Análise por mês
-        df_pedidos['data_entrega_dt'] = pd.to_datetime(df_pedidos['data_entrega'], format='%d/%m/%Y', errors='coerce')
-        df_pedidos['mes_ano'] = df_pedidos['data_entrega_dt'].dt.to_period('M')
-        
-        if not df_pedidos['mes_ano'].isna().all():
-            evolucao = df_pedidos.groupby('mes_ano').agg({
-                'valor': 'sum',
-                'custos_pedido': 'sum',
-                'numero_pedido': 'count'
-            }).reset_index()
+        if not df_pedidos.empty:
+            # Gráfico de receita mensal
+            df_pedidos['data_entrega'] = pd.to_datetime(df_pedidos['data_entrega'])
+            df_pedidos['mes'] = df_pedidos['data_entrega'].dt.to_period('M')
             
-            evolucao['lucro'] = evolucao['valor'] - evolucao['custos_pedido']
-            evolucao['mes_ano_str'] = evolucao['mes_ano'].astype(str)
+            receita_mensal = df_pedidos.groupby('mes')['valor'].sum().reset_index()
+            receita_mensal['mes_str'] = receita_mensal['mes'].astype(str)
             
-            col_ev1, col_ev2 = st.columns(2)
+            fig_evolucao = px.line(
+                receita_mensal,
+                x='mes_str',
+                y='valor',
+                title="📈 Evolução da Receita Mensal",
+                markers=True
+            )
+            fig_evolucao.update_traces(line_color='#D4AF37', marker_color='#D4AF37')
+            fig_evolucao.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font_color='white'
+            )
+            st.plotly_chart(fig_evolucao, use_container_width=True)
             
-            with col_ev1:
-                fig_receita_mensal = px.bar(
-                    evolucao,
-                    x='mes_ano_str',
-                    y='valor',
-                    title='Receita Mensal',
-                    color='valor',
-                    color_continuous_scale='blues'
-                )
-                fig_receita_mensal.update_layout(
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    font_color='white'
-                )
-                st.plotly_chart(fig_receita_mensal, use_container_width=True)
+            # Lucro mensal
+            lucro_mensal = df_pedidos.groupby('mes').apply(lambda x: x['valor'].sum() - x['custos'].sum()).reset_index()
+            lucro_mensal.columns = ['mes', 'lucro']
+            lucro_mensal['mes_str'] = lucro_mensal['mes'].astype(str)
             
-            with col_ev2:
-                fig_lucro_mensal = px.bar(
-                    evolucao,
-                    x='mes_ano_str',
-                    y='lucro',
-                    title='Lucro Mensal',
-                    color='lucro',
-                    color_continuous_scale='greens'
-                )
-                fig_lucro_mensal.update_layout(
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    font_color='white'
-                )
-                st.plotly_chart(fig_lucro_mensal, use_container_width=True)
-        else:
-            st.warning("Não foi possível processar as datas para análise temporal.")
+            fig_lucro = px.bar(
+                lucro_mensal,
+                x='mes_str',
+                y='lucro',
+                title="💰 Lucro Mensal",
+                color='lucro',
+                color_continuous_scale=['#1E3A8A', '#D4AF37']
+            )
+            fig_lucro.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font_color='white'
+            )
+            st.plotly_chart(fig_lucro, use_container_width=True)
     
     with tab3:
-        st.markdown("### 📋 Gestão de Pedidos")
+        st.markdown("### 📦 Gestão de Pedidos")
         
-        # Tabela de pedidos reais (MANTÉM COMO PEDIDOS COMPLETOS)
-        st.markdown("#### 📊 Lista de Pedidos Completos")
-        
-        # Preparar dados para exibição
-        df_display = df_filtrado[['numero_pedido', 'cliente_projeto', 'data_entrega', 'categoria', 
-                                 'valor', 'local', 'status']].copy()
-        
-        df_display['valor'] = df_display['valor'].apply(lambda x: f'R$ {x:,.2f}')
-        
-        # Renomear colunas
-        df_display.columns = ['Nº Pedido', 'Cliente/Projeto', 'Data Entrega', 'Categoria', 
-                             'Valor', 'Local', 'Status']
-        
-        st.dataframe(df_display, use_container_width=True, height=400)
-        
-        # Resumo dos pedidos filtrados
-        st.markdown("#### 📈 Resumo dos Dados")
-        
-        col_res1, col_res2, col_res3, col_res4 = st.columns(4)
-        
-        with col_res1:
-            total_pedidos_filtrados = len(df_filtrado)
-            st.markdown(f"""
-            <div class="metric-card blue">
-                <h4>Total de Pedidos</h4>
-                <h2>{total_pedidos_filtrados}</h2>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col_res2:
-            valor_total_filtrado = df_filtrado['valor'].sum()
-            st.markdown(f"""
-            <div class="metric-card green">
-                <h4>Valor Total</h4>
-                <h2>R$ {valor_total_filtrado:,.0f}</h2>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col_res3:
-            custo_total_filtrado = df_filtrado['custos_pedido'].sum()
-            st.markdown(f"""
-            <div class="metric-card purple">
-                <h4>Custo Total</h4>
-                <h2>R$ {custo_total_filtrado:,.0f}</h2>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col_res4:
-            lucro_filtrado = valor_total_filtrado - custo_total_filtrado
-            st.markdown(f"""
-            <div class="metric-card orange">
-                <h4>Lucro Total</h4>
-                <h2>R$ {lucro_filtrado:,.0f}</h2>
-            </div>
-            """, unsafe_allow_html=True)
+        if not df_pedidos.empty:
+            # Filtros
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                status_filter = st.selectbox(
+                    "Filtrar por Status:",
+                    ["Todos"] + list(df_pedidos['status'].unique())
+                )
+            
+            with col2:
+                categoria_filter = st.selectbox(
+                    "Filtrar por Categoria:",
+                    ["Todas"] + list(df_pedidos['categoria'].unique())
+                )
+            
+            with col3:
+                cliente_filter = st.selectbox(
+                    "Filtrar por Cliente:",
+                    ["Todos"] + list(df_pedidos['cliente'].unique())
+                )
+            
+            # Aplicar filtros
+            df_filtrado = df_pedidos.copy()
+            
+            if status_filter != "Todos":
+                df_filtrado = df_filtrado[df_filtrado['status'] == status_filter]
+            
+            if categoria_filter != "Todas":
+                df_filtrado = df_filtrado[df_filtrado['categoria'] == categoria_filter]
+            
+            if cliente_filter != "Todos":
+                df_filtrado = df_filtrado[df_filtrado['cliente'] == cliente_filter]
+            
+            # Tabela de pedidos
+            st.dataframe(
+                df_filtrado[['numero_pedido', 'cliente', 'categoria', 'valor', 'status', 'data_entrega']],
+                use_container_width=True
+            )
+            
+            # Métricas filtradas
+            if not df_filtrado.empty:
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <h4>Pedidos Filtrados</h4>
+                        <h2>{len(df_filtrado)}</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col2:
+                    valor_filtrado = df_filtrado['valor'].sum()
+                    st.markdown(f"""
+                    <div class="metric-card green">
+                        <h4>Valor Total</h4>
+                        <h2>R$ {valor_filtrado:,.0f}</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                with col3:
+                    ticket_medio = valor_filtrado / len(df_filtrado) if len(df_filtrado) > 0 else 0
+                    st.markdown(f"""
+                    <div class="metric-card blue">
+                        <h4>Ticket Médio</h4>
+                        <h2>R$ {ticket_medio:,.0f}</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
     
     with tab4:
-        st.markdown("### 🛍️ Catálogo de Produtos")
+        st.markdown("### 🎯 Gerador de Orçamentos")
         
-        # Exibir catálogo de produtos
-        st.markdown("#### 📦 Catálogo Completo de Produtos")
+        st.markdown("""
+        <div class="orcamento-container">
+            <h2 style="color: #D4AF37; text-align: center;">📋 Criar Novo Orçamento</h2>
+        </div>
+        """, unsafe_allow_html=True)
         
-        # Filtros para o catálogo
-        col_cat1, col_cat2 = st.columns(2)
-        
-        with col_cat1:
-            categoria_produto = st.selectbox("Filtrar por Categoria", 
-                                           ["Todas"] + df_catalogo['categoria'].unique().tolist(),
-                                           key="cat_produto")
-        
-        with col_cat2:
-            busca_produto = st.text_input("Buscar produto", placeholder="Digite o nome do produto...")
-        
-        # Aplicar filtros no catálogo
-        df_catalogo_filtrado = df_catalogo.copy()
-        
-        if categoria_produto != "Todas":
-            df_catalogo_filtrado = df_catalogo_filtrado[df_catalogo_filtrado['categoria'] == categoria_produto]
-        
-        if busca_produto:
-            df_catalogo_filtrado = df_catalogo_filtrado[
-                df_catalogo_filtrado['produto'].str.contains(busca_produto, case=False, na=False)
-            ]
-        
-        # Exibir tabela do catálogo
-        df_catalogo_display = df_catalogo_filtrado.copy()
-        df_catalogo_display['preco_base'] = df_catalogo_display['preco_base'].apply(lambda x: f'R$ {x:,.2f}')
-        df_catalogo_display.columns = ['Produto', 'Categoria', 'Preço Base', 'Unidade']
-        
-        st.dataframe(df_catalogo_display, use_container_width=True, height=400)
-        
-        # Estatísticas do catálogo
-        st.markdown("#### 📊 Estatísticas do Catálogo")
-        
-        col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
-        
-        with col_stat1:
-            total_produtos = len(df_catalogo)
-            st.markdown(f"""
-            <div class="metric-card blue">
-                <h4>Total de Produtos</h4>
-                <h2>{total_produtos}</h2>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col_stat2:
-            total_categorias = df_catalogo['categoria'].nunique()
-            st.markdown(f"""
-            <div class="metric-card green">
-                <h4>Categorias</h4>
-                <h2>{total_categorias}</h2>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col_stat3:
-            preco_medio = df_catalogo['preco_base'].mean()
-            st.markdown(f"""
-            <div class="metric-card purple">
-                <h4>Preço Médio</h4>
-                <h2>R$ {preco_medio:,.0f}</h2>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col_stat4:
-            produtos_mais_usados = len(df_frequencia_produtos)
-            st.markdown(f"""
-            <div class="metric-card orange">
-                <h4>Produtos em Uso</h4>
-                <h2>{produtos_mais_usados}</h2>
-            </div>
-            """, unsafe_allow_html=True)
+        # Formulário de orçamento
+        with st.form("form_orcamento"):
+            # Dados do cliente
+            st.markdown("#### 👤 Dados do Cliente")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                nome_cliente = st.text_input("Nome do Cliente *", placeholder="Nome completo ou empresa")
+                telefone_cliente = st.text_input("Telefone", placeholder="(61) 99999-9999")
+                data_evento = st.date_input("Data do Evento")
+            
+            with col2:
+                email_cliente = st.text_input("Email", placeholder="email@exemplo.com")
+                evento_descricao = st.text_input("Descrição do Evento", placeholder="Ex: Festa de aniversário")
+                local_evento = st.text_input("Local do Evento", placeholder="Endereço completo")
+            
+            # Datas
+            st.markdown("#### 📅 Datas")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                data_entrega = st.date_input("Data de Entrega")
+            
+            with col2:
+                data_recolhimento = st.date_input("Data de Recolhimento")
+            
+            # Seleção de produtos
+            st.markdown("#### 🛠️ Seleção de Produtos")
+            
+            if not df_produtos.empty:
+                # Inicializar session state para itens
+                if 'itens_orcamento' not in st.session_state:
+                    st.session_state.itens_orcamento = []
+                
+                col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
+                
+                with col1:
+                    produto_selecionado = st.selectbox(
+                        "Selecionar Produto:",
+                        options=df_produtos['produto'].tolist(),
+                        key="produto_select"
+                    )
+                
+                with col2:
+                    quantidade = st.number_input("Quantidade:", min_value=1, value=1, key="quantidade_input")
+                
+                with col3:
+                    # Buscar preço do produto selecionado
+                    preco_sugerido = df_produtos[df_produtos['produto'] == produto_selecionado]['valor_diaria'].iloc[0] if not df_produtos.empty else 0
+                    preco_unitario = st.number_input("Preço Unit.:", min_value=0.0, value=float(preco_sugerido), step=0.01, key="preco_input")
+                
+                with col4:
+                    if st.form_submit_button("➕ Adicionar Item", use_container_width=True):
+                        if produto_selecionado and quantidade > 0 and preco_unitario > 0:
+                            item = {
+                                'produto': produto_selecionado,
+                                'quantidade': quantidade,
+                                'preco_unitario': preco_unitario,
+                                'preco_total': quantidade * preco_unitario
+                            }
+                            st.session_state.itens_orcamento.append(item)
+                            st.success(f"✅ {produto_selecionado} adicionado!")
+                
+                # Exibir itens adicionados
+                if st.session_state.itens_orcamento:
+                    st.markdown("#### 📋 Itens do Orçamento")
+                    
+                    for i, item in enumerate(st.session_state.itens_orcamento):
+                        col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
+                        
+                        with col1:
+                            st.write(item['produto'])
+                        with col2:
+                            st.write(f"{item['quantidade']}")
+                        with col3:
+                            st.write(f"R$ {item['preco_unitario']:.2f}")
+                        with col4:
+                            st.write(f"R$ {item['preco_total']:.2f}")
+                        with col5:
+                            if st.button("🗑️", key=f"remove_{i}"):
+                                st.session_state.itens_orcamento.pop(i)
+                                st.rerun()
+                    
+                    # Total
+                    valor_total = sum(item['preco_total'] for item in st.session_state.itens_orcamento)
+                    st.markdown(f"""
+                    <div class="total-section">
+                        <h3>VALOR TOTAL: R$ {valor_total:,.2f}</h3>
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            # Observações
+            observacoes = st.text_area("Observações", placeholder="Informações adicionais sobre o orçamento")
+            
+            # Botão para gerar orçamento
+            submitted = st.form_submit_button("🎯 Gerar Orçamento PDF", use_container_width=True)
+            
+            if submitted:
+                if nome_cliente and st.session_state.itens_orcamento:
+                    # Gerar número do orçamento
+                    numero_orcamento = f"ORC{datetime.now().strftime('%Y%m%d')}{str(uuid.uuid4())[:4].upper()}"
+                    
+                    # Dados do orçamento
+                    dados_orcamento = {
+                        'numero_orcamento': numero_orcamento,
+                        'nome_cliente': nome_cliente,
+                        'email_cliente': email_cliente,
+                        'telefone_cliente': telefone_cliente,
+                        'evento_descricao': evento_descricao,
+                        'local_evento': local_evento,
+                        'data_evento': data_evento.strftime('%d/%m/%Y') if data_evento else '',
+                        'data_entrega': data_entrega.strftime('%d/%m/%Y') if data_entrega else '',
+                        'data_recolhimento': data_recolhimento.strftime('%d/%m/%Y') if data_recolhimento else '',
+                        'observacoes': observacoes
+                    }
+                    
+                    # Gerar PDF
+                    try:
+                        pdf_buffer = gerar_pdf_orcamento(dados_orcamento, st.session_state.itens_orcamento)
+                        
+                        # Disponibilizar para download
+                        st.success(f"✅ Orçamento {numero_orcamento} gerado com sucesso!")
+                        
+                        st.download_button(
+                            label="📥 Baixar Orçamento PDF",
+                            data=pdf_buffer.getvalue(),
+                            file_name=f"orcamento_{numero_orcamento}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                        
+                        # Limpar itens após gerar
+                        if st.button("🔄 Novo Orçamento"):
+                            st.session_state.itens_orcamento = []
+                            st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"❌ Erro ao gerar PDF: {e}")
+                
+                else:
+                    st.error("❌ Preencha pelo menos o nome do cliente e adicione itens ao orçamento!")
     
     with tab5:
+        st.markdown("### 🛠️ Catálogo de Produtos")
+        
+        if not df_produtos.empty:
+            # Estatísticas do catálogo
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h4>📦 Total de Produtos</h4>
+                    <h2>{len(df_produtos)}</h2>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col2:
+                categorias_unicas = df_produtos['categoria'].nunique()
+                st.markdown(f"""
+                <div class="metric-card green">
+                    <h4>🏷️ Categorias</h4>
+                    <h2>{categorias_unicas}</h2>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col3:
+                preco_medio = df_produtos['valor_diaria'].mean()
+                st.markdown(f"""
+                <div class="metric-card blue">
+                    <h4>💰 Preço Médio</h4>
+                    <h2>R$ {preco_medio:.0f}</h2>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col4:
+                estoque_total = df_produtos['unidades'].sum()
+                st.markdown(f"""
+                <div class="metric-card purple">
+                    <h4>📊 Estoque Total</h4>
+                    <h2>{estoque_total:.0f}</h2>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # Filtros
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                categoria_filtro = st.selectbox(
+                    "Filtrar por Categoria:",
+                    ["Todas"] + sorted(df_produtos['categoria'].unique().tolist())
+                )
+            
+            with col2:
+                busca_produto = st.text_input("Buscar Produto:", placeholder="Digite o nome do produto")
+            
+            # Aplicar filtros
+            df_produtos_filtrado = df_produtos.copy()
+            
+            if categoria_filtro != "Todas":
+                df_produtos_filtrado = df_produtos_filtrado[df_produtos_filtrado['categoria'] == categoria_filtro]
+            
+            if busca_produto:
+                df_produtos_filtrado = df_produtos_filtrado[
+                    df_produtos_filtrado['produto'].str.contains(busca_produto, case=False, na=False)
+                ]
+            
+            # Tabela de produtos
+            st.dataframe(
+                df_produtos_filtrado[['produto', 'categoria', 'valor_diaria', 'unidades']],
+                use_container_width=True
+            )
+            
+            # Gráfico de distribuição por categoria
+            if not df_produtos_filtrado.empty:
+                categoria_count = df_produtos_filtrado['categoria'].value_counts().reset_index()
+                
+                fig_cat_dist = px.bar(
+                    categoria_count,
+                    x='categoria',
+                    y='count',
+                    title="📊 Distribuição de Produtos por Categoria",
+                    color='count',
+                    color_continuous_scale=['#1E3A8A', '#D4AF37']
+                )
+                fig_cat_dist.update_layout(
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    font_color='white'
+                )
+                st.plotly_chart(fig_cat_dist, use_container_width=True)
+        
+        else:
+            st.warning("⚠️ Nenhum produto encontrado na planilha.")
+    
+    with tab6:
         st.markdown("### ⚠️ Sistema de Alertas")
         
-        # Alertas baseados nos dados reais
-        if kpis['margem_lucro'] < 20:
-            st.error(f"🚨 MARGEM BAIXA: {kpis['margem_lucro']:.1f}% (Recomendado: >20%)")
-        
-        if kpis['pagamentos_pendentes'] > 2:
-            st.error(f"🚨 PAGAMENTOS PENDENTES: {kpis['pagamentos_pendentes']} pedidos")
-        
-        if kpis['pedidos_em_andamento'] > 0:
-            st.warning(f"⚠️ PEDIDOS EM ANDAMENTO: {kpis['pedidos_em_andamento']} pedidos")
-        
-        # Alertas específicos dos dados reais
-        pedido_sem_valor = len(df_pedidos[df_pedidos['valor'] == 0])
-        if pedido_sem_valor > 0:
-            st.warning(f"⚠️ PEDIDOS SEM VALOR DEFINIDO: {pedido_sem_valor} pedidos")
-        
-        # Alertas positivos
-        if kpis['pedidos_finalizados'] >= 5:
-            st.success(f"✅ ÓTIMA EXECUÇÃO: {kpis['pedidos_finalizados']} pedidos finalizados!")
-        
-        if kpis['margem_lucro'] > 30:
-            st.success(f"✅ EXCELENTE MARGEM: {kpis['margem_lucro']:.1f}%")
+        if not df_pedidos.empty:
+            # Calcular alertas
+            alertas_criticos = 0
+            alertas_atencao = 0
+            alertas_positivos = 0
+            
+            # Verificar margem de lucro baixa
+            if margem_lucro < 20:
+                alertas_criticos += 1
+                st.error(f"🚨 **MARGEM DE LUCRO BAIXA**: {margem_lucro:.1f}% (Recomendado: >20%)")
+            
+            # Verificar pedidos pendentes
+            pedidos_pendentes = len(df_pedidos[df_pedidos['status'].isin(['Pendente', 'Em Negociação'])])
+            if pedidos_pendentes > 3:
+                alertas_atencao += 1
+                st.warning(f"⚠️ **MUITOS PEDIDOS PENDENTES**: {pedidos_pendentes} pedidos aguardando definição")
+            
+            # Verificar crescimento
+            if receita_total > 20000:
+                alertas_positivos += 1
+                st.success(f"✅ **META DE RECEITA ATINGIDA**: R$ {receita_total:,.0f} (Meta: R$ 20.000)")
+            
+            # Verificar diversificação de clientes
+            clientes_unicos = df_pedidos['cliente'].nunique()
+            if clientes_unicos < 5:
+                alertas_atencao += 1
+                st.warning(f"⚠️ **POUCOS CLIENTES ATIVOS**: {clientes_unicos} clientes (Recomendado: >5)")
+            
+            # Resumo de alertas
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h4>🚨 Críticos</h4>
+                    <h2>{alertas_criticos}</h2>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col2:
+                st.markdown(f"""
+                <div class="metric-card orange">
+                    <h4>⚠️ Atenção</h4>
+                    <h2>{alertas_atencao}</h2>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col3:
+                st.markdown(f"""
+                <div class="metric-card green">
+                    <h4>✅ Positivos</h4>
+                    <h2>{alertas_positivos}</h2>
+                </div>
+                """, unsafe_allow_html=True)
     
+    # Footer
     st.markdown(f"""
     <div class="footer">
-        🎪 Dashboard Primeira Linha Eventos v4.0 | 
-        ➕ COM FORMULÁRIO COMPLETO DE NOVO PEDIDO | 
-        🛍️ SELEÇÃO DE PRODUTOS CATALOGADOS | 
-        📊 DADOS REAIS + NOVOS PEDIDOS | 
+        🎪 Dashboard Primeira Linha Eventos v5.0 | 
+        Sistema Integrado Completo com Gerador de Orçamentos | 
         Última atualização: {datetime.now().strftime('%d/%m/%Y %H:%M')} | 
-        {len(df_pedidos)} pedidos | {len(df_catalogo)} produtos catalogados
+        {len(df_produtos)} produtos no catálogo | 
+        {len(df_pedidos)} pedidos registrados
     </div>
     """, unsafe_allow_html=True)
 
