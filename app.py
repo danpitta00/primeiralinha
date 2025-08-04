@@ -1,6 +1,6 @@
 """
 Dashboard Primeira Linha Eventos - Sistema Integrado Completo
-Versão 5.3 - CORRIGIDO (download_button fora do formulário)
+Versão 5.4 - FINAL com Timbrado JPG e Exclusão de Pedidos
 """
 
 import streamlit as st
@@ -16,8 +16,10 @@ import uuid
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 from reportlab.lib.colors import HexColor
+from reportlab.lib.utils import ImageReader
 import io
 import base64
+import os
 
 # Configuração da página
 st.set_page_config(
@@ -159,6 +161,15 @@ st.markdown("""
         background: linear-gradient(135deg, #B8941F 0%, #9A7B1A 100%);
         transform: translateY(-2px);
         box-shadow: 0 8px 25px rgba(212, 175, 55, 0.3);
+    }
+    
+    .delete-button {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+        color: white !important;
+    }
+    
+    .delete-button:hover {
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -305,34 +316,60 @@ def calcular_dias_evento(data_inicio, data_fim):
     except:
         return 0
 
-# Função para gerar PDF do orçamento
+# Função para gerar PDF do orçamento com timbrado JPG
 def gerar_pdf_orcamento(dados_orcamento, itens_orcamento):
-    """Gera PDF do orçamento com timbrado da empresa"""
+    """Gera PDF do orçamento com timbrado JPG da empresa"""
     
     # Criar PDF em memória
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
     
-    # Cores da empresa
-    cor_dourado = HexColor('#D4AF37')
-    cor_azul = HexColor('#1E3A8A')
+    # Caminho para o timbrado
+    timbrado_path = "/home/ubuntu/timbrado_primeira_linha.jpg"
     
-    # Cabeçalho com timbrado
-    c.setFillColor(cor_azul)
-    c.rect(0, height - 80, width, 80, fill=1)
+    try:
+        # Verificar se o arquivo existe
+        if os.path.exists(timbrado_path):
+            # Inserir timbrado como imagem de fundo no cabeçalho
+            # Ajustar tamanho para caber no cabeçalho (A3 para A4)
+            img_width = width
+            img_height = 120  # Altura do cabeçalho
+            
+            c.drawImage(timbrado_path, 0, height - img_height, 
+                       width=img_width, height=img_height, 
+                       preserveAspectRatio=True, mask='auto')
+        else:
+            # Fallback para cabeçalho sem imagem
+            cor_azul = HexColor('#1E3A8A')
+            cor_dourado = HexColor('#D4AF37')
+            
+            c.setFillColor(cor_azul)
+            c.rect(0, height - 80, width, 80, fill=1)
+            
+            c.setFillColor(cor_dourado)
+            c.setFont("Helvetica-Bold", 24)
+            c.drawString(50, height - 50, "PRIMEIRA LINHA EVENTOS")
+            
+            c.setFillColor('white')
+            c.setFont("Helvetica", 10)
+            c.drawString(width - 200, height - 30, "CNPJ: 31.912.825/0001-06")
+            c.drawString(width - 200, height - 45, "Inscrição Estadual: 07.885.269/001-70")
     
-    c.setFillColor(cor_dourado)
-    c.setFont("Helvetica-Bold", 24)
-    c.drawString(50, height - 50, "PRIMEIRA LINHA EVENTOS")
-    
-    c.setFillColor('white')
-    c.setFont("Helvetica", 10)
-    c.drawString(width - 200, height - 30, "CNPJ: 31.912.825/0001-06")
-    c.drawString(width - 200, height - 45, "Inscrição Estadual: 07.885.269/001-70")
+    except Exception as e:
+        # Em caso de erro, usar cabeçalho padrão
+        cor_azul = HexColor('#1E3A8A')
+        cor_dourado = HexColor('#D4AF37')
+        
+        c.setFillColor(cor_azul)
+        c.rect(0, height - 80, width, 80, fill=1)
+        
+        c.setFillColor(cor_dourado)
+        c.setFont("Helvetica-Bold", 24)
+        c.drawString(50, height - 50, "PRIMEIRA LINHA EVENTOS")
     
     # Conteúdo do orçamento
-    y_position = height - 120
+    y_position = height - 140  # Ajustar posição após timbrado
     
     c.setFillColor('black')
     c.setFont("Helvetica-Bold", 16)
@@ -390,7 +427,8 @@ def gerar_pdf_orcamento(dados_orcamento, itens_orcamento):
     valido_ate = (datetime.now() + timedelta(days=10)).strftime('%d/%m/%Y')
     c.drawString(50, y_position, f"Proposta válida até: {valido_ate}")
     
-    # Rodapé
+    # Rodapé (usar informações do timbrado original)
+    cor_azul = HexColor('#1E3A8A')
     c.setFillColor(cor_azul)
     c.rect(0, 0, width, 60, fill=1)
     
@@ -410,7 +448,7 @@ def main():
     st.markdown("""
     <div class="main-header">
         <h1>🎪 PRIMEIRA LINHA EVENTOS</h1>
-        <h3>Sistema Integrado Completo v5.3</h3>
+        <h3>Sistema Integrado Completo v5.4</h3>
         <p>Dashboard + Gerador de Orçamentos + Gestão de Pedidos</p>
     </div>
     """, unsafe_allow_html=True)
@@ -716,9 +754,52 @@ def main():
             # Mostrar resultados
             st.markdown(f"**📊 Resultados:** {len(df_filtrado)} pedidos | Receita: R$ {df_filtrado['valor'].sum():,.2f}")
             
-            # Tabela de pedidos
+            # Tabela de pedidos com botão de exclusão
             if not df_filtrado.empty:
-                st.dataframe(df_filtrado, use_container_width=True, height=400)
+                st.markdown("#### 📋 Lista de Pedidos")
+                
+                for i, (idx, pedido) in enumerate(df_filtrado.iterrows()):
+                    col1, col2, col3, col4, col5, col6 = st.columns([2, 2, 1, 1, 1, 1])
+                    
+                    with col1:
+                        st.markdown(f"**{pedido['numero_pedido']}** - {pedido['cliente']}")
+                        st.markdown(f"*{pedido['produto_servico'][:50]}...*")
+                    
+                    with col2:
+                        st.markdown(f"**Local:** {pedido['local']}")
+                        st.markdown(f"**Categoria:** {pedido['categoria']}")
+                    
+                    with col3:
+                        st.markdown(f"**Valor:**")
+                        st.markdown(f"R$ {pedido['valor']:,.2f}")
+                    
+                    with col4:
+                        st.markdown(f"**Status:**")
+                        st.markdown(f"{pedido['status']}")
+                    
+                    with col5:
+                        st.markdown(f"**Entrega:**")
+                        st.markdown(f"{pedido['data_entrega']}")
+                    
+                    with col6:
+                        # Botão de exclusão apenas para pedidos novos (criados na sessão)
+                        if 'novos_pedidos' in st.session_state:
+                            pedidos_novos = [p['numero_pedido'] for p in st.session_state.novos_pedidos]
+                            if pedido['numero_pedido'] in pedidos_novos:
+                                if st.button("🗑️ Excluir", key=f"delete_{pedido['numero_pedido']}", help="Excluir pedido"):
+                                    # Remover pedido da lista
+                                    st.session_state.novos_pedidos = [
+                                        p for p in st.session_state.novos_pedidos 
+                                        if p['numero_pedido'] != pedido['numero_pedido']
+                                    ]
+                                    st.success(f"✅ Pedido {pedido['numero_pedido']} excluído!")
+                                    st.rerun()
+                            else:
+                                st.markdown("*Pedido fixo*")
+                        else:
+                            st.markdown("*Pedido fixo*")
+                    
+                    st.divider()
             else:
                 st.info("🔍 Nenhum pedido encontrado com os filtros aplicados")
         else:
@@ -824,10 +905,6 @@ def main():
         if st.session_state.itens_orcamento:
             st.markdown("#### 👤 Dados do Cliente e Evento")
             
-            # Dados do cliente em session_state
-            if 'dados_cliente' not in st.session_state:
-                st.session_state.dados_cliente = {}
-            
             col1, col2 = st.columns(2)
             
             with col1:
@@ -887,7 +964,7 @@ def main():
                         'numero': numero_orcamento
                     }
                     
-                    st.success(f"✅ Orçamento {numero_orcamento} gerado com sucesso!")
+                    st.success(f"✅ Orçamento {numero_orcamento} gerado com timbrado da empresa!")
                     st.rerun()
                 else:
                     st.error("❌ Preencha pelo menos o nome do cliente e descrição do evento")
@@ -896,7 +973,7 @@ def main():
         if 'pdf_gerado' in st.session_state:
             st.markdown(f"""
             <div class="success-box">
-                ✅ Orçamento {st.session_state.pdf_gerado['numero']} pronto para download!
+                ✅ Orçamento {st.session_state.pdf_gerado['numero']} pronto para download com timbrado oficial!
             </div>
             """, unsafe_allow_html=True)
             
