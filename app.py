@@ -1,6 +1,6 @@
 """
 Dashboard Primeira Linha Eventos - Sistema Integrado Completo
-Versão 5.2 - COM GERADOR DE ORÇAMENTOS E CRIAÇÃO DE PEDIDOS
+Versão 5.3 - CORRIGIDO + Gerador de Orçamentos Completo
 """
 
 import streamlit as st
@@ -96,11 +96,22 @@ st.markdown("""
     }
     
     .item-row {
-        background: #374151;
+        background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
         padding: 1rem;
         border-radius: 8px;
         margin: 0.5rem 0;
         border-left: 3px solid #D4AF37;
+        border: 1px solid #4b5563;
+    }
+    
+    .item-header {
+        background: linear-gradient(135deg, #1e3a8a 0%, #3730a3 100%);
+        padding: 0.75rem;
+        border-radius: 8px;
+        margin: 0.5rem 0;
+        border: 2px solid #D4AF37;
+        font-weight: bold;
+        text-align: center;
     }
     
     .total-section {
@@ -408,7 +419,7 @@ def main():
     st.markdown("""
     <div class="main-header">
         <h1>🎪 PRIMEIRA LINHA EVENTOS</h1>
-        <h3>Sistema Integrado Completo v5.2</h3>
+        <h3>Sistema Integrado Completo v5.3</h3>
         <p>Dashboard + Gerador de Orçamentos + Gestão de Pedidos</p>
     </div>
     """, unsafe_allow_html=True)
@@ -797,31 +808,46 @@ def main():
                         st.success(f"✅ {produto_selecionado} adicionado!")
                         st.rerun()
         
-        # Exibir itens adicionados
+        # Exibir itens adicionados com visual melhorado
         if st.session_state.itens_orcamento:
             st.markdown("#### 📋 Itens do Orçamento")
             
+            # Cabeçalho da lista
+            st.markdown("""
+            <div class="item-header">
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="flex: 3;">PRODUTO</span>
+                    <span style="flex: 1; text-align: center;">QTD</span>
+                    <span style="flex: 1; text-align: center;">PREÇO UNIT.</span>
+                    <span style="flex: 1; text-align: center;">TOTAL</span>
+                    <span style="flex: 0.5; text-align: center;">AÇÃO</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Lista de itens
             for i, item in enumerate(st.session_state.itens_orcamento):
-                col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
+                st.markdown(f"""
+                <div class="item-row">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span style="flex: 3; font-weight: bold;">{item['produto']}</span>
+                        <span style="flex: 1; text-align: center;">{item['quantidade']}</span>
+                        <span style="flex: 1; text-align: center;">R$ {item['preco_unitario']:.2f}</span>
+                        <span style="flex: 1; text-align: center; font-weight: bold; color: #D4AF37;">R$ {item['preco_total']:.2f}</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
                 
-                with col1:
-                    st.write(item['produto'])
-                with col2:
-                    st.write(f"{item['quantidade']}")
-                with col3:
-                    st.write(f"R$ {item['preco_unitario']:.2f}")
-                with col4:
-                    st.write(f"R$ {item['preco_total']:.2f}")
-                with col5:
-                    if st.button("🗑️", key=f"remove_{i}"):
-                        st.session_state.itens_orcamento.pop(i)
-                        st.rerun()
+                # Botão de remover (fora do HTML)
+                if st.button("🗑️ Remover", key=f"remove_{i}", help=f"Remover {item['produto']}"):
+                    st.session_state.itens_orcamento.pop(i)
+                    st.rerun()
             
             # Total
             valor_total = sum(item['preco_total'] for item in st.session_state.itens_orcamento)
             st.markdown(f"""
             <div class="total-section">
-                <h3>VALOR TOTAL: R$ {valor_total:,.2f}</h3>
+                <h2>💰 VALOR TOTAL: R$ {valor_total:,.2f}</h2>
             </div>
             """, unsafe_allow_html=True)
         
@@ -1063,8 +1089,8 @@ def main():
     # Footer
     st.markdown(f"""
     <div class="footer">
-        🎪 Dashboard Primeira Linha Eventos v5.2 | 
-        Sistema Integrado Completo com Gerador de Orçamentos e Criação de Pedidos | 
+        🎪 Dashboard Primeira Linha Eventos v5.3 | 
+        Sistema Integrado Completo - CORRIGIDO | 
         Última atualização: {datetime.now().strftime('%d/%m/%Y %H:%M')} | 
         {len(df_produtos)} produtos no catálogo | 
         {len(df_pedidos)} pedidos registrados
