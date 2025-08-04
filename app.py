@@ -1,6 +1,6 @@
 """
 Dashboard Primeira Linha Eventos - Sistema Integrado Completo
-Versão 5.0 com Gerador de Orçamentos + Conexão Google Sheets Online
+Versão 5.2 - COM GERADOR DE ORÇAMENTOS E CRIAÇÃO DE PEDIDOS
 """
 
 import streamlit as st
@@ -87,6 +87,14 @@ st.markdown("""
         margin: 1rem 0;
     }
     
+    .pedido-container {
+        background: linear-gradient(135deg, #1f2937 0%, #374151 100%);
+        padding: 2rem;
+        border-radius: 15px;
+        border: 2px solid #10b981;
+        margin: 1rem 0;
+    }
+    
     .item-row {
         background: #374151;
         padding: 1rem;
@@ -142,6 +150,24 @@ st.markdown("""
         transform: translateY(-2px);
         box-shadow: 0 8px 25px rgba(212, 175, 55, 0.3);
     }
+    
+    .sidebar-button {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: bold;
+        padding: 0.75rem 1.5rem;
+        width: 100%;
+        margin: 0.5rem 0;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .sidebar-button:hover {
+        background: linear-gradient(135deg, #059669 0%, #047857 100%);
+        transform: translateY(-2px);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -174,10 +200,12 @@ def carregar_produtos_sheets():
 @st.cache_data(ttl=600)
 def gerar_dados_pedidos():
     """Gera dados de pedidos baseados nos produtos reais da planilha"""
-    produtos_df = carregar_produtos_sheets()
     
-    if produtos_df.empty:
-        return pd.DataFrame()
+    # Verificar se há pedidos salvos no session_state
+    if 'pedidos_salvos' in st.session_state:
+        pedidos_existentes = st.session_state.pedidos_salvos
+    else:
+        pedidos_existentes = []
     
     # Dados reais dos pedidos existentes
     pedidos_reais = [
@@ -274,26 +302,10 @@ def gerar_dados_pedidos():
         }
     ]
     
-    return pd.DataFrame(pedidos_reais)
-
-# Função para extrair produtos individuais
-def extrair_produtos_individuais(df):
-    """Extrai produtos individuais das descrições dos pedidos"""
-    produtos_individuais = []
+    # Combinar pedidos reais com pedidos salvos
+    todos_pedidos = pedidos_reais + pedidos_existentes
     
-    for _, row in df.iterrows():
-        produtos = row['produto_servico'].split(', ')
-        for produto in produtos:
-            produto_limpo = produto.strip()
-            if produto_limpo:
-                produtos_individuais.append({
-                    'produto': produto_limpo,
-                    'pedido': row['numero_pedido'],
-                    'cliente': row['cliente'],
-                    'valor_pedido': row['valor']
-                })
-    
-    return pd.DataFrame(produtos_individuais)
+    return pd.DataFrame(todos_pedidos)
 
 # Função para gerar PDF do orçamento
 def gerar_pdf_orcamento(dados_orcamento, itens_orcamento):
@@ -396,7 +408,7 @@ def main():
     st.markdown("""
     <div class="main-header">
         <h1>🎪 PRIMEIRA LINHA EVENTOS</h1>
-        <h3>Sistema Integrado Completo v5.0</h3>
+        <h3>Sistema Integrado Completo v5.2</h3>
         <p>Dashboard + Gerador de Orçamentos + Gestão de Pedidos</p>
     </div>
     """, unsafe_allow_html=True)
@@ -404,8 +416,12 @@ def main():
     # Sidebar com navegação
     st.sidebar.markdown("### 🎯 Navegação")
     
+    # Botão para criar novo pedido na sidebar
+    if st.sidebar.button("📝 Novo Pedido", use_container_width=True):
+        st.session_state.show_novo_pedido = True
+    
     # Botão para atualizar dados
-    if st.sidebar.button("🔄 Atualizar Dados da Planilha"):
+    if st.sidebar.button("🔄 Atualizar Dados da Planilha", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
     
@@ -417,6 +433,111 @@ def main():
     if df_produtos.empty:
         st.error("❌ Erro ao carregar dados da planilha. Verifique a conexão.")
         return
+    
+    # Modal para novo pedido
+    if st.session_state.get('show_novo_pedido', False):
+        st.markdown("""
+        <div class="pedido-container">
+            <h2 style="color: #10b981; text-align: center;">📝 Criar Novo Pedido</h2>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        with st.form("form_novo_pedido"):
+            # Dados básicos do pedido
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                cliente_pedido = st.text_input("Cliente *", placeholder="Nome do cliente ou empresa")
+                categoria_pedido = st.selectbox("Categoria *", ["Particular", "Corporativo", "Público Extra"])
+                valor_pedido = st.number_input("Valor do Pedido (R$) *", min_value=0.0, step=0.01)
+                local_pedido = st.text_input("Local do Evento *", placeholder="Endereço completo")
+            
+            with col2:
+                custos_pedido = st.number_input("Custos (R$)", min_value=0.0, step=0.01)
+                diarias_equipe = st.number_input("Diárias de Equipe", min_value=0, value=1)
+                data_entrega_pedido = st.date_input("Data de Entrega *")
+                data_recolhimento_pedido = st.date_input("Data de Recolhimento *")
+            
+            # Produtos/Serviços
+            st.markdown("#### 🛠️ Produtos/Serviços")
+            
+            # Seleção múltipla de produtos
+            produtos_selecionados = st.multiselect(
+                "Selecionar Produtos:",
+                options=df_produtos['produto'].tolist(),
+                help="Selecione um ou mais produtos da lista"
+            )
+            
+            # Campo adicional para produtos não listados
+            produtos_extras = st.text_area(
+                "Produtos Adicionais:",
+                placeholder="Digite produtos que não estão na lista, separados por vírgula"
+            )
+            
+            # Status do pedido
+            status_pedido = st.selectbox(
+                "Status do Pedido:",
+                ["Em Negociação", "Confirmado", "Em Andamento", "Finalizado", "Cancelado", "Pendente"]
+            )
+            
+            # Observações
+            observacoes_pedido = st.text_area("Observações", placeholder="Informações adicionais sobre o pedido")
+            
+            # Botões do formulário
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                submitted_pedido = st.form_submit_button("✅ Salvar Pedido", use_container_width=True)
+            
+            with col2:
+                if st.form_submit_button("❌ Cancelar", use_container_width=True):
+                    st.session_state.show_novo_pedido = False
+                    st.rerun()
+            
+            # Processar envio do formulário
+            if submitted_pedido:
+                if cliente_pedido and valor_pedido > 0 and local_pedido and data_entrega_pedido and data_recolhimento_pedido:
+                    # Gerar número do pedido
+                    numero_pedido = f"PED{datetime.now().strftime('%Y%m%d')}{str(uuid.uuid4())[:3].upper()}"
+                    
+                    # Combinar produtos selecionados com produtos extras
+                    produtos_finais = produtos_selecionados.copy()
+                    if produtos_extras:
+                        produtos_extras_lista = [p.strip() for p in produtos_extras.split(',') if p.strip()]
+                        produtos_finais.extend(produtos_extras_lista)
+                    
+                    produto_servico_str = ', '.join(produtos_finais) if produtos_finais else 'A definir'
+                    
+                    # Criar novo pedido
+                    novo_pedido = {
+                        'numero_pedido': numero_pedido,
+                        'cliente': cliente_pedido,
+                        'categoria': categoria_pedido,
+                        'produto_servico': produto_servico_str,
+                        'valor': valor_pedido,
+                        'custos': custos_pedido,
+                        'diarias_equipe': diarias_equipe,
+                        'local': local_pedido,
+                        'data_entrega': data_entrega_pedido.strftime('%Y-%m-%d'),
+                        'data_recolhimento': data_recolhimento_pedido.strftime('%Y-%m-%d'),
+                        'status': status_pedido
+                    }
+                    
+                    # Salvar no session_state
+                    if 'pedidos_salvos' not in st.session_state:
+                        st.session_state.pedidos_salvos = []
+                    
+                    st.session_state.pedidos_salvos.append(novo_pedido)
+                    
+                    # Limpar cache para atualizar dados
+                    st.cache_data.clear()
+                    
+                    st.success(f"✅ Pedido {numero_pedido} criado com sucesso!")
+                    st.session_state.show_novo_pedido = False
+                    st.rerun()
+                
+                else:
+                    st.error("❌ Preencha todos os campos obrigatórios marcados com *")
     
     # Abas principais
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
@@ -638,7 +759,73 @@ def main():
         </div>
         """, unsafe_allow_html=True)
         
-        # Formulário de orçamento
+        # Inicializar session state para itens
+        if 'itens_orcamento' not in st.session_state:
+            st.session_state.itens_orcamento = []
+        
+        # Seção para adicionar itens (FORA do formulário)
+        st.markdown("#### 🛠️ Adicionar Produtos ao Orçamento")
+        
+        if not df_produtos.empty:
+            col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
+            
+            with col1:
+                produto_selecionado = st.selectbox(
+                    "Selecionar Produto:",
+                    options=df_produtos['produto'].tolist(),
+                    key="produto_select"
+                )
+            
+            with col2:
+                quantidade = st.number_input("Quantidade:", min_value=1, value=1, key="quantidade_input")
+            
+            with col3:
+                # Buscar preço do produto selecionado
+                preco_sugerido = df_produtos[df_produtos['produto'] == produto_selecionado]['valor_diaria'].iloc[0] if not df_produtos.empty else 0
+                preco_unitario = st.number_input("Preço Unit.:", min_value=0.0, value=float(preco_sugerido), step=0.01, key="preco_input")
+            
+            with col4:
+                if st.button("➕ Adicionar Item", use_container_width=True):
+                    if produto_selecionado and quantidade > 0 and preco_unitario > 0:
+                        item = {
+                            'produto': produto_selecionado,
+                            'quantidade': quantidade,
+                            'preco_unitario': preco_unitario,
+                            'preco_total': quantidade * preco_unitario
+                        }
+                        st.session_state.itens_orcamento.append(item)
+                        st.success(f"✅ {produto_selecionado} adicionado!")
+                        st.rerun()
+        
+        # Exibir itens adicionados
+        if st.session_state.itens_orcamento:
+            st.markdown("#### 📋 Itens do Orçamento")
+            
+            for i, item in enumerate(st.session_state.itens_orcamento):
+                col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
+                
+                with col1:
+                    st.write(item['produto'])
+                with col2:
+                    st.write(f"{item['quantidade']}")
+                with col3:
+                    st.write(f"R$ {item['preco_unitario']:.2f}")
+                with col4:
+                    st.write(f"R$ {item['preco_total']:.2f}")
+                with col5:
+                    if st.button("🗑️", key=f"remove_{i}"):
+                        st.session_state.itens_orcamento.pop(i)
+                        st.rerun()
+            
+            # Total
+            valor_total = sum(item['preco_total'] for item in st.session_state.itens_orcamento)
+            st.markdown(f"""
+            <div class="total-section">
+                <h3>VALOR TOTAL: R$ {valor_total:,.2f}</h3>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Formulário de orçamento (SEM botões internos)
         with st.form("form_orcamento"):
             # Dados do cliente
             st.markdown("#### 👤 Dados do Cliente")
@@ -663,71 +850,6 @@ def main():
             
             with col2:
                 data_recolhimento = st.date_input("Data de Recolhimento")
-            
-            # Seleção de produtos
-            st.markdown("#### 🛠️ Seleção de Produtos")
-            
-            if not df_produtos.empty:
-                # Inicializar session state para itens
-                if 'itens_orcamento' not in st.session_state:
-                    st.session_state.itens_orcamento = []
-                
-                col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
-                
-                with col1:
-                    produto_selecionado = st.selectbox(
-                        "Selecionar Produto:",
-                        options=df_produtos['produto'].tolist(),
-                        key="produto_select"
-                    )
-                
-                with col2:
-                    quantidade = st.number_input("Quantidade:", min_value=1, value=1, key="quantidade_input")
-                
-                with col3:
-                    # Buscar preço do produto selecionado
-                    preco_sugerido = df_produtos[df_produtos['produto'] == produto_selecionado]['valor_diaria'].iloc[0] if not df_produtos.empty else 0
-                    preco_unitario = st.number_input("Preço Unit.:", min_value=0.0, value=float(preco_sugerido), step=0.01, key="preco_input")
-                
-                with col4:
-                    if st.form_submit_button("➕ Adicionar Item", use_container_width=True):
-                        if produto_selecionado and quantidade > 0 and preco_unitario > 0:
-                            item = {
-                                'produto': produto_selecionado,
-                                'quantidade': quantidade,
-                                'preco_unitario': preco_unitario,
-                                'preco_total': quantidade * preco_unitario
-                            }
-                            st.session_state.itens_orcamento.append(item)
-                            st.success(f"✅ {produto_selecionado} adicionado!")
-                
-                # Exibir itens adicionados
-                if st.session_state.itens_orcamento:
-                    st.markdown("#### 📋 Itens do Orçamento")
-                    
-                    for i, item in enumerate(st.session_state.itens_orcamento):
-                        col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
-                        
-                        with col1:
-                            st.write(item['produto'])
-                        with col2:
-                            st.write(f"{item['quantidade']}")
-                        with col3:
-                            st.write(f"R$ {item['preco_unitario']:.2f}")
-                        with col4:
-                            st.write(f"R$ {item['preco_total']:.2f}")
-                        with col5:
-                            if st.button("🗑️", key=f"remove_{i}"):
-                                st.session_state.itens_orcamento.pop(i)
-                                st.rerun()
-                    
-                    # Total
-                    valor_total = sum(item['preco_total'] for item in st.session_state.itens_orcamento)
-                    st.markdown(f"""
-                    <div class="total-section">
-                        <h3>VALOR TOTAL: R$ {valor_total:,.2f}</h3>
-                    </div>
-                    """, unsafe_allow_html=True)
             
             # Observações
             observacoes = st.text_area("Observações", placeholder="Informações adicionais sobre o orçamento")
@@ -769,16 +891,17 @@ def main():
                             use_container_width=True
                         )
                         
-                        # Limpar itens após gerar
-                        if st.button("🔄 Novo Orçamento"):
-                            st.session_state.itens_orcamento = []
-                            st.rerun()
-                        
                     except Exception as e:
                         st.error(f"❌ Erro ao gerar PDF: {e}")
                 
                 else:
                     st.error("❌ Preencha pelo menos o nome do cliente e adicione itens ao orçamento!")
+        
+        # Botão para limpar orçamento (FORA do formulário)
+        if st.session_state.itens_orcamento:
+            if st.button("🔄 Limpar Orçamento", use_container_width=True):
+                st.session_state.itens_orcamento = []
+                st.rerun()
     
     with tab5:
         st.markdown("### 🛠️ Catálogo de Produtos")
@@ -877,6 +1000,12 @@ def main():
         st.markdown("### ⚠️ Sistema de Alertas")
         
         if not df_pedidos.empty:
+            # Calcular KPIs para alertas
+            receita_total = df_pedidos['valor'].sum()
+            custos_totais = df_pedidos['custos'].sum()
+            lucro_total = receita_total - custos_totais
+            margem_lucro = (lucro_total / receita_total * 100) if receita_total > 0 else 0
+            
             # Calcular alertas
             alertas_criticos = 0
             alertas_atencao = 0
@@ -934,8 +1063,8 @@ def main():
     # Footer
     st.markdown(f"""
     <div class="footer">
-        🎪 Dashboard Primeira Linha Eventos v5.0 | 
-        Sistema Integrado Completo com Gerador de Orçamentos | 
+        🎪 Dashboard Primeira Linha Eventos v5.2 | 
+        Sistema Integrado Completo com Gerador de Orçamentos e Criação de Pedidos | 
         Última atualização: {datetime.now().strftime('%d/%m/%Y %H:%M')} | 
         {len(df_produtos)} produtos no catálogo | 
         {len(df_pedidos)} pedidos registrados
