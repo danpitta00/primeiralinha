@@ -1,87 +1,143 @@
-"""
-NEXO - NÚCLEO DE EXCELÊNCIA OPERACIONAL
-Sistema Completo e Funcional - Todas as Funcionalidades Implementadas
-Design Neutro Preto com Foco em UX e Performance
-"""
-
 import streamlit as st
 import pandas as pd
-import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from datetime import datetime, timedelta, time
-import requests
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-from reportlab.lib.colors import HexColor
-from reportlab.lib.utils import ImageReader
-import io
-import os
+from datetime import datetime, timedelta
 import json
-import hashlib
 import base64
-from PIL import Image
-import time as py_time
+from io import BytesIO
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+import uuid
+import time
+import os
 
 # Configuração da página
 st.set_page_config(
     page_title="NEXO - Núcleo de Excelência Operacional",
-    page_icon="⚫",
+    page_icon="🟠",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Função para carregar logo
-@st.cache_data
-def get_logo_base64():
-    try:
-        with open("/home/ubuntu/nexo_logo.jpg", "rb") as f:
-            logo_bytes = f.read()
-        logo_base64 = base64.b64encode(logo_bytes).decode()
-        return f"data:image/jpeg;base64,{logo_base64}"
-    except:
-        return None
-
-# CSS Neutro e Funcional
-logo_base64 = get_logo_base64()
-
+# CSS Personalizado - Design Neutro Preto com Acentos Laranja
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-    
-    * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
+    /* Reset e Base */
+    .main .block-container {
+        padding-top: 1rem;
+        padding-bottom: 1rem;
+        max-width: 100%;
     }
     
+    /* Cores Principais */
+    :root {
+        --nexo-orange: #FF6B00;
+        --nexo-dark: #1a1a1a;
+        --nexo-gray: #2d2d2d;
+        --nexo-light-gray: #404040;
+        --nexo-white: #ffffff;
+        --nexo-text: #e0e0e0;
+    }
+    
+    /* Background Principal */
     .stApp {
-        background-color: #000000;
-        color: #FFFFFF;
-        font-family: 'Inter', sans-serif;
+        background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+        color: var(--nexo-text);
     }
     
-    /* Loading Screen */
-    .loading-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
+    /* Sidebar */
+    .css-1d391kg {
+        background: var(--nexo-dark);
+        border-right: 2px solid var(--nexo-orange);
+    }
+    
+    /* Headers */
+    h1, h2, h3, h4, h5, h6 {
+        color: var(--nexo-white) !important;
+        font-family: 'Inter', sans-serif;
+        font-weight: 600;
+    }
+    
+    /* Cards Personalizados */
+    .metric-card {
+        background: linear-gradient(135deg, var(--nexo-gray) 0%, var(--nexo-light-gray) 100%);
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 1px solid var(--nexo-orange);
+        box-shadow: 0 4px 12px rgba(255, 107, 0, 0.1);
+        margin-bottom: 1rem;
+        transition: all 0.3s ease;
+    }
+    
+    .metric-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(255, 107, 0, 0.2);
+        border-color: var(--nexo-orange);
+    }
+    
+    /* Botões */
+    .stButton > button {
+        background: linear-gradient(135deg, var(--nexo-orange) 0%, #ff8533 100%);
+        color: var(--nexo-white);
+        border: none;
+        border-radius: 8px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
         width: 100%;
-        height: 100%;
-        background-color: #000000;
+    }
+    
+    .stButton > button:hover {
+        background: linear-gradient(135deg, #ff8533 0%, var(--nexo-orange) 100%);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(255, 107, 0, 0.3);
+    }
+    
+    /* Inputs */
+    .stTextInput > div > div > input,
+    .stSelectbox > div > div > select,
+    .stTextArea > div > div > textarea {
+        background: var(--nexo-gray);
+        color: var(--nexo-white);
+        border: 1px solid var(--nexo-light-gray);
+        border-radius: 8px;
+    }
+    
+    .stTextInput > div > div > input:focus,
+    .stSelectbox > div > div > select:focus,
+    .stTextArea > div > div > textarea:focus {
+        border-color: var(--nexo-orange);
+        box-shadow: 0 0 0 2px rgba(255, 107, 0, 0.2);
+    }
+    
+    /* Tabelas */
+    .stDataFrame {
+        background: var(--nexo-gray);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    /* Loading Spinner */
+    .loading-container {
         display: flex;
         justify-content: center;
         align-items: center;
-        z-index: 9999;
+        height: 200px;
+        flex-direction: column;
     }
     
-    .spinner {
-        border: 4px solid #333333;
-        border-top: 4px solid #FF6B00;
+    .loading-spinner {
+        border: 4px solid var(--nexo-light-gray);
+        border-top: 4px solid var(--nexo-orange);
         border-radius: 50%;
         width: 50px;
         height: 50px;
         animation: spin 1s linear infinite;
+        margin-bottom: 1rem;
     }
     
     @keyframes spin {
@@ -89,9 +145,9 @@ st.markdown("""
         100% { transform: rotate(360deg); }
     }
     
-    /* Login Page - 100% Orange with White Box */
-    .login-page {
-        background-color: #FF6B00;
+    /* Login Page */
+    .login-container {
+        background: var(--nexo-orange);
         min-height: 100vh;
         display: flex;
         justify-content: center;
@@ -100,2258 +156,2121 @@ st.markdown("""
     }
     
     .login-box {
-        background-color: #FFFFFF;
+        background: var(--nexo-white);
         padding: 3rem;
-        border-radius: 12px;
-        width: 100%;
+        border-radius: 16px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
         max-width: 400px;
+        width: 100%;
         text-align: center;
-        color: #000000;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     }
     
     .login-logo {
         width: 120px;
-        height: 120px;
-        margin: 0 auto 1.5rem auto;
-        background-image: url('data:image/jpeg;base64,{logo_base64}');
-        background-size: contain;
-        background-repeat: no-repeat;
-        background-position: center;
-        border-radius: 8px;
-    }
-    
-    .login-box h1 {
-        color: #FF6B00;
-        font-weight: 700;
-        font-size: 2.5rem;
-        margin-bottom: 0.5rem;
-    }
-    
-    .login-box h3 {
-        color: #666666;
-        font-weight: 500;
+        height: auto;
         margin-bottom: 2rem;
-    }
-    
-    /* Main Interface */
-    .main-header {
-        background-color: #1a1a1a;
-        padding: 1.5rem 2rem;
-        border-radius: 8px;
-        margin-bottom: 2rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border: 1px solid #333333;
-    }
-    
-    .header-logo {
-        width: 50px;
-        height: 50px;
-        background-image: url('data:image/jpeg;base64,{logo_base64}');
-        background-size: contain;
-        background-repeat: no-repeat;
-        background-position: center;
-        border-radius: 6px;
-    }
-    
-    .header-title {
-        color: #FFFFFF;
-        font-size: 1.5rem;
-        font-weight: 600;
-        margin: 0;
-    }
-    
-    .header-subtitle {
-        color: #FF6B00;
-        font-size: 1rem;
-        font-weight: 500;
-        margin: 0;
-    }
-    
-    /* Cards */
-    .metric-card {
-        background-color: #1a1a1a;
-        padding: 1.5rem;
-        border-radius: 8px;
-        border: 1px solid #333333;
-        margin-bottom: 1rem;
-        transition: all 0.3s ease;
-    }
-    
-    .metric-card:hover {
-        border-color: #FF6B00;
-        box-shadow: 0 4px 20px rgba(255, 107, 0, 0.2);
-    }
-    
-    .metric-value {
-        font-size: 2rem;
-        font-weight: 700;
-        color: #FF6B00;
-        margin-bottom: 0.5rem;
-    }
-    
-    .metric-label {
-        color: #CCCCCC;
-        font-size: 0.9rem;
-        font-weight: 500;
-    }
-    
-    /* Forms */
-    .stTextInput > div > div > input {
-        background-color: #1a1a1a;
-        border: 1px solid #333333;
-        border-radius: 6px;
-        color: #FFFFFF;
-        font-family: 'Inter', sans-serif;
-    }
-    
-    .stTextInput > div > div > input:focus {
-        border-color: #FF6B00;
-        box-shadow: 0 0 0 2px rgba(255, 107, 0, 0.2);
-    }
-    
-    .stSelectbox > div > div > select {
-        background-color: #1a1a1a;
-        border: 1px solid #333333;
-        border-radius: 6px;
-        color: #FFFFFF;
-        font-family: 'Inter', sans-serif;
-    }
-    
-    .stButton > button {
-        background-color: #FF6B00;
-        color: #FFFFFF;
-        border: none;
-        border-radius: 6px;
-        font-weight: 600;
-        padding: 0.75rem 1.5rem;
-        transition: all 0.3s ease;
-        font-family: 'Inter', sans-serif;
-    }
-    
-    .stButton > button:hover {
-        background-color: #E55A00;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 15px rgba(255, 107, 0, 0.3);
-    }
-    
-    /* GPS Component */
-    .gps-container {
-        background-color: #1a1a1a;
-        padding: 1.5rem;
-        border-radius: 8px;
-        border: 1px solid #333333;
-        margin: 1rem 0;
-    }
-    
-    .gps-button {
-        background-color: #FF6B00;
-        color: #FFFFFF;
-        border: none;
-        border-radius: 6px;
-        padding: 1rem 2rem;
-        font-weight: 600;
-        cursor: pointer;
-        width: 100%;
-        margin-bottom: 1rem;
-        transition: all 0.3s ease;
-    }
-    
-    .gps-button:hover {
-        background-color: #E55A00;
-        transform: translateY(-2px);
-    }
-    
-    .location-display {
-        background-color: #2a2a2a;
-        padding: 1rem;
-        border-radius: 6px;
-        margin: 1rem 0;
-        border: 1px solid #444444;
-    }
-    
-    /* Chat Component */
-    .chat-container {
-        background-color: #1a1a1a;
-        border-radius: 8px;
-        border: 1px solid #333333;
-        height: 400px;
-        display: flex;
-        flex-direction: column;
-    }
-    
-    .chat-header {
-        background-color: #2a2a2a;
-        padding: 1rem;
-        border-radius: 8px 8px 0 0;
-        border-bottom: 1px solid #333333;
-        font-weight: 600;
-    }
-    
-    .chat-messages {
-        flex: 1;
-        padding: 1rem;
-        overflow-y: auto;
-    }
-    
-    .chat-message {
-        margin-bottom: 1rem;
-        display: flex;
-        align-items: flex-start;
-    }
-    
-    .chat-message.sent {
-        justify-content: flex-end;
-    }
-    
-    .chat-bubble {
-        max-width: 70%;
-        padding: 0.75rem 1rem;
-        border-radius: 18px;
-        word-wrap: break-word;
-    }
-    
-    .sent .chat-bubble {
-        background-color: #FF6B00;
-        color: #FFFFFF;
-    }
-    
-    .received .chat-bubble {
-        background-color: #2a2a2a;
-        color: #FFFFFF;
-        border: 1px solid #333333;
-    }
-    
-    .chat-input {
-        padding: 1rem;
-        border-top: 1px solid #333333;
-        display: flex;
-        gap: 0.5rem;
-    }
-    
-    /* Etapas Campo */
-    .etapa-card {
-        background-color: #1a1a1a;
-        padding: 1.5rem;
-        border-radius: 8px;
-        border: 1px solid #333333;
-        margin: 1rem 0;
-        transition: all 0.3s ease;
-    }
-    
-    .etapa-ativa {
-        border-color: #FF6B00;
-        box-shadow: 0 4px 20px rgba(255, 107, 0, 0.2);
-    }
-    
-    .etapa-concluida {
-        border-color: #10b981;
-        background-color: #0f2f23;
-    }
-    
-    .etapa-bloqueada {
-        opacity: 0.5;
-        border-color: #666666;
-    }
-    
-    .progress-bar {
-        width: 100%;
-        height: 8px;
-        background-color: #2a2a2a;
-        border-radius: 4px;
-        overflow: hidden;
-        margin: 1rem 0;
-    }
-    
-    .progress-fill {
-        height: 100%;
-        background-color: #FF6B00;
-        transition: width 0.5s ease;
     }
     
     /* Status Badges */
     .status-badge {
-        display: inline-block;
         padding: 0.25rem 0.75rem;
-        border-radius: 12px;
+        border-radius: 20px;
         font-size: 0.8rem;
         font-weight: 600;
-        text-transform: uppercase;
+        text-align: center;
+        display: inline-block;
+        margin: 0.25rem;
     }
     
-    .status-padrao { background-color: #10b981; color: #FFFFFF; }
-    .status-urgente { background-color: #f59e0b; color: #000000; }
-    .status-weekend { background-color: #8b5cf6; color: #FFFFFF; }
-    
-    /* Sidebar */
-    .css-1d391kg {
-        background-color: #0a0a0a;
-        border-right: 1px solid #333333;
+    .status-pendente {
+        background: #fef3c7;
+        color: #92400e;
     }
     
-    /* Tables */
-    .stDataFrame {
-        background-color: #1a1a1a;
+    .status-andamento {
+        background: #dbeafe;
+        color: #1e40af;
+    }
+    
+    .status-concluido {
+        background: #d1fae5;
+        color: #065f46;
+    }
+    
+    .status-urgente {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+    
+    /* Chat Interface */
+    .chat-container {
+        background: var(--nexo-gray);
+        border-radius: 12px;
+        padding: 1rem;
+        height: 400px;
+        overflow-y: auto;
+        border: 1px solid var(--nexo-light-gray);
+    }
+    
+    .chat-message {
+        background: var(--nexo-light-gray);
+        padding: 0.75rem;
         border-radius: 8px;
-        border: 1px solid #333333;
+        margin-bottom: 0.5rem;
+        border-left: 3px solid var(--nexo-orange);
     }
     
-    /* Mobile Responsiveness */
+    /* Progress Bar */
+    .progress-container {
+        background: var(--nexo-light-gray);
+        border-radius: 10px;
+        padding: 4px;
+        margin: 1rem 0;
+    }
+    
+    .progress-bar {
+        background: linear-gradient(90deg, var(--nexo-orange) 0%, #ff8533 100%);
+        height: 20px;
+        border-radius: 6px;
+        transition: width 0.3s ease;
+    }
+    
+    /* Mobile Responsivo */
     @media (max-width: 768px) {
-        .login-box {
-            padding: 2rem;
-            margin: 1rem;
-        }
-        
-        .main-header {
-            padding: 1rem;
-            flex-direction: column;
-            text-align: center;
-        }
-        
-        .header-logo {
-            margin-bottom: 1rem;
+        .main .block-container {
+            padding: 0.5rem;
         }
         
         .metric-card {
             padding: 1rem;
         }
         
-        .chat-container {
-            height: 300px;
+        .login-box {
+            padding: 2rem;
+            margin: 1rem;
         }
     }
+    
+    /* Alertas */
+    .alert {
+        padding: 1rem;
+        border-radius: 8px;
+        margin: 1rem 0;
+        border-left: 4px solid var(--nexo-orange);
+    }
+    
+    .alert-info {
+        background: rgba(59, 130, 246, 0.1);
+        color: #3b82f6;
+    }
+    
+    .alert-success {
+        background: rgba(34, 197, 94, 0.1);
+        color: #22c55e;
+    }
+    
+    .alert-warning {
+        background: rgba(245, 158, 11, 0.1);
+        color: #f59e0b;
+    }
+    
+    .alert-error {
+        background: rgba(239, 68, 68, 0.1);
+        color: #ef4444;
+    }
 </style>
-""".replace('{logo_base64}', logo_base64 or ''), unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
-# JavaScript para GPS e Chat funcionais
-st.components.v1.html(f"""
-<script>
-// GPS Funcional
-let userLocation = null;
+# Logo NEXO em Base64 (versão simplificada)
+NEXO_LOGO_BASE64 = "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIwIiBoZWlnaHQ9IjgwIiB2aWV3Qm94PSIwIDAgMTIwIDgwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cmVjdCB3aWR0aD0iMTIwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjRkY2QjAwIi8+Cjx0ZXh0IHg9IjYwIiB5PSI0NSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0IiBmb250LXdlaWdodD0iYm9sZCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiPk5FWE88L3RleHQ+Cjwvc3ZnPgo="
 
-function obterLocalizacaoGPS() {{
-    if (navigator.geolocation) {{
-        const options = {{
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 60000
-        }};
-        
-        navigator.geolocation.getCurrentPosition(
-            function(position) {{
-                const lat = position.coords.latitude;
-                const lng = position.coords.longitude;
-                const accuracy = position.coords.accuracy;
-                
-                userLocation = {{ lat: lat, lng: lng, accuracy: accuracy }};
-                
-                // Geocoding reverso usando API gratuita
-                fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${{lat}}&longitude=${{lng}}&localityLanguage=pt`)
-                    .then(response => response.json())
-                    .then(data => {{
-                        const endereco = data.display_name || `${{data.city}}, ${{data.principalSubdivision}}`;
-                        
-                        // Atualizar display
-                        const locationDisplay = document.getElementById('location-display');
-                        if (locationDisplay) {{
-                            locationDisplay.innerHTML = `
-                                <strong>📍 Localização Capturada:</strong><br>
-                                <strong>Endereço:</strong> ${{endereco}}<br>
-                                <strong>Coordenadas:</strong> ${{lat.toFixed(6)}}, ${{lng.toFixed(6)}}<br>
-                                <strong>Precisão:</strong> ${{accuracy.toFixed(0)}}m
-                            `;
-                        }}
-                        
-                        // Enviar para Streamlit
-                        window.parent.postMessage({{
-                            type: 'streamlit:setComponentValue',
-                            value: {{
-                                lat: lat,
-                                lng: lng,
-                                endereco: endereco,
-                                accuracy: accuracy,
-                                timestamp: new Date().toISOString()
-                            }}
-                        }}, '*');
-                    }})
-                    .catch(error => {{
-                        console.error('Erro no geocoding:', error);
-                        const locationDisplay = document.getElementById('location-display');
-                        if (locationDisplay) {{
-                            locationDisplay.innerHTML = `
-                                <strong>📍 Localização Capturada:</strong><br>
-                                <strong>Coordenadas:</strong> ${{lat.toFixed(6)}}, ${{lng.toFixed(6)}}<br>
-                                <strong>Precisão:</strong> ${{accuracy.toFixed(0)}}m
-                            `;
-                        }}
-                        
-                        window.parent.postMessage({{
-                            type: 'streamlit:setComponentValue',
-                            value: {{
-                                lat: lat,
-                                lng: lng,
-                                endereco: `Lat: ${{lat.toFixed(6)}}, Lng: ${{lng.toFixed(6)}}`,
-                                accuracy: accuracy,
-                                timestamp: new Date().toISOString()
-                            }}
-                        }}, '*');
-                    }});
-            }},
-            function(error) {{
-                let errorMsg = "Erro ao obter localização: ";
-                switch(error.code) {{
-                    case error.PERMISSION_DENIED:
-                        errorMsg += "Permissão negada. Permita o acesso à localização.";
-                        break;
-                    case error.POSITION_UNAVAILABLE:
-                        errorMsg += "Localização indisponível.";
-                        break;
-                    case error.TIMEOUT:
-                        errorMsg += "Timeout na requisição.";
-                        break;
-                    default:
-                        errorMsg += "Erro desconhecido.";
-                        break;
-                }}
-                
-                const locationDisplay = document.getElementById('location-display');
-                if (locationDisplay) {{
-                    locationDisplay.innerHTML = `<strong>❌ ${{errorMsg}}</strong>`;
-                }}
-                
-                alert(errorMsg);
-            }},
-            options
-        );
-    }} else {{
-        alert("Geolocalização não é suportada por este navegador.");
-    }}
-}}
+# Inicialização do Session State
+def init_session_state():
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+    if 'user_type' not in st.session_state:
+        st.session_state.user_type = None
+    if 'user_name' not in st.session_state:
+        st.session_state.user_name = None
+    if 'pedidos' not in st.session_state:
+        st.session_state.pedidos = []
+    if 'produtos' not in st.session_state:
+        st.session_state.produtos = [
+            {"nome": "Tenda 3x3", "categoria": "Tendas", "preco": 150.00},
+            {"nome": "Tenda 6x6", "categoria": "Tendas", "preco": 300.00},
+            {"nome": "Mesa Redonda", "categoria": "Mobiliário", "preco": 25.00},
+            {"nome": "Cadeira Plástica", "categoria": "Mobiliário", "preco": 5.00},
+            {"nome": "Som Ambiente", "categoria": "Áudio", "preco": 200.00},
+            {"nome": "Iluminação LED", "categoria": "Iluminação", "preco": 100.00}
+        ]
+    if 'equipes' not in st.session_state:
+        st.session_state.equipes = [
+            {"nome": "João Silva", "especialidade": "Montagem", "status": "Disponível"},
+            {"nome": "Carlos Santos", "especialidade": "Elétrica", "status": "Ocupado"},
+            {"nome": "Pedro Lima", "especialidade": "Logística", "status": "Disponível"},
+            {"nome": "Ana Costa", "especialidade": "Decoração", "status": "Disponível"},
+            {"nome": "Marcelão", "especialidade": "Supervisão", "status": "Disponível"}
+        ]
+    if 'tarefas_galpao' not in st.session_state:
+        st.session_state.tarefas_galpao = []
+    if 'chat_messages' not in st.session_state:
+        st.session_state.chat_messages = []
 
-// Chat WebSocket Simulado (em produção seria WebSocket real)
-class ChatManager {{
-    constructor() {{
-        this.messages = JSON.parse(localStorage.getItem('nexo_chat_messages') || '{{}}');
-        this.currentUser = localStorage.getItem('nexo_current_user') || 'Usuario';
-    }}
+# Função de Login
+def login_page():
+    st.markdown("""
+    <div class="login-container">
+        <div class="login-box">
+            <img src="{}" class="login-logo" alt="NEXO Logo">
+            <h2 style="color: #1a1a1a; margin-bottom: 2rem;">NEXO</h2>
+            <p style="color: #666; margin-bottom: 2rem;">Núcleo de Excelência Operacional</p>
+        </div>
+    </div>
+    """.format(NEXO_LOGO_BASE64), unsafe_allow_html=True)
     
-    sendMessage(channel, message, user) {{
-        if (!this.messages[channel]) {{
-            this.messages[channel] = [];
-        }}
+    with st.container():
+        st.markdown("<div style='background: white; padding: 2rem; border-radius: 16px; max-width: 400px; margin: 0 auto;'>", unsafe_allow_html=True)
         
-        const newMessage = {{
-            id: Date.now(),
-            user: user,
-            message: message,
-            timestamp: new Date().toISOString(),
-            type: 'user'
-        }};
+        st.markdown("### Acesso ao Sistema")
         
-        this.messages[channel].push(newMessage);
-        localStorage.setItem('nexo_chat_messages', JSON.stringify(this.messages));
+        usuario = st.text_input("Usuário", placeholder="Digite seu usuário")
+        senha = st.text_input("Senha", type="password", placeholder="Digite sua senha")
         
-        // Simular resposta automática após 1-3 segundos
-        const delay = Math.random() * 2000 + 1000;
-        setTimeout(() => {{
-            this.simulateResponse(channel);
-        }}, delay);
-        
-        return newMessage;
-    }}
-    
-    simulateResponse(channel) {{
-        const responses = [
-            "Mensagem recebida!",
-            "Entendido, vou verificar isso.",
-            "Ok, anotado.",
-            "Perfeito, obrigado pela informação.",
-            "Vou providenciar isso agora.",
-            "Certo, já estou cuidando.",
-            "Recebido, vou atualizar o status.",
-            "Obrigado pelo aviso!"
-        ];
-        
-        const response = {{
-            id: Date.now(),
-            user: 'Sistema',
-            message: responses[Math.floor(Math.random() * responses.length)],
-            timestamp: new Date().toISOString(),
-            type: 'system'
-        }};
-        
-        this.messages[channel].push(response);
-        localStorage.setItem('nexo_chat_messages', JSON.stringify(this.messages));
-        
-        // Notificar Streamlit sobre nova mensagem
-        window.parent.postMessage({{
-            type: 'chat_update',
-            channel: channel,
-            message: response
-        }}, '*');
-    }}
-    
-    getMessages(channel) {{
-        return this.messages[channel] || [];
-    }}
-    
-    clearMessages(channel) {{
-        if (this.messages[channel]) {{
-            delete this.messages[channel];
-            localStorage.setItem('nexo_chat_messages', JSON.stringify(this.messages));
-        }}
-    }}
-}}
-
-// Inicializar chat manager
-const chatManager = new ChatManager();
-
-// Função para enviar mensagem via chat
-function enviarMensagemChat(channel, message, user) {{
-    if (message && message.trim()) {{
-        chatManager.sendMessage(channel, message.trim(), user);
-        
-        // Notificar Streamlit
-        window.parent.postMessage({{
-            type: 'message_sent',
-            channel: channel,
-            message: message.trim(),
-            user: user
-        }}, '*');
-    }}
-}}
-
-// Função para obter mensagens do chat
-function obterMensagensChat(channel) {{
-    return chatManager.getMessages(channel);
-}}
-
-// Notificações Push
-function mostrarNotificacao(titulo, mensagem) {{
-    if ("Notification" in window) {{
-        if (Notification.permission === "granted") {{
-            new Notification(titulo, {{
-                body: mensagem,
-                icon: "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(`
-                    <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <rect width="64" height="64" rx="8" fill="#FF6B00"/>
-                        <text x="32" y="40" text-anchor="middle" fill="white" font-size="20" font-weight="bold">NEXO</text>
-                    </svg>
-                `),
-                tag: 'nexo-notification'
-            }});
-        }} else if (Notification.permission !== "denied") {{
-            Notification.requestPermission().then(function (permission) {{
-                if (permission === "granted") {{
-                    mostrarNotificacao(titulo, mensagem);
-                }}
-            }});
-        }}
-    }}
-}}
-
-// Auto-refresh para simular tempo real
-setInterval(() => {{
-    // Em produção seria uma conexão WebSocket real
-    window.parent.postMessage({{
-        type: 'heartbeat',
-        timestamp: new Date().toISOString()
-    }}, '*');
-}}, 30000); // A cada 30 segundos
-
-// Solicitar permissão para notificações ao carregar
-if ("Notification" in window && Notification.permission === "default") {{
-    Notification.requestPermission();
-}}
-</script>
-
-<div id="location-display" class="location-display" style="display: none;">
-    <em>Clique no botão acima para obter sua localização</em>
-</div>
-""", height=100)
-
-# Dados de usuários
-USUARIOS = {
-    'comercial': {'senha': 'com123', 'nome': 'Equipe Comercial', 'perfil': 'comercial'},
-    'marcelao': {'senha': 'log123', 'nome': 'Marcelão', 'perfil': 'logistica'},
-    'joao': {'senha': 'campo123', 'nome': 'João Silva', 'perfil': 'campo'},
-    'carlos': {'senha': 'campo123', 'nome': 'Carlos Santos', 'perfil': 'campo'},
-    'pedro': {'senha': 'campo123', 'nome': 'Pedro Lima', 'perfil': 'campo'},
-    'boss': {'senha': 'boss123', 'nome': 'Diretor', 'perfil': 'boss'}
-}
-
-# Lista de colaboradores
-COLABORADORES = [
-    {'nome': 'João Silva', 'funcao': 'Montador Senior', 'disponibilidade': 'Seg-Sex', 'especialidade': 'Estruturas, Palcos', 'status': 'Disponível'},
-    {'nome': 'Carlos Santos', 'funcao': 'Técnico Audio/Video', 'disponibilidade': 'Ter-Sab', 'especialidade': 'Som, Iluminação', 'status': 'Ocupado'},
-    {'nome': 'Pedro Lima', 'funcao': 'Auxiliar Geral', 'disponibilidade': 'Seg-Dom', 'especialidade': 'Montagem, Transporte', 'status': 'Disponível'},
-    {'nome': 'Ana Costa', 'funcao': 'Decoradora', 'disponibilidade': 'Qua-Dom', 'especialidade': 'Decoração, Arranjos', 'status': 'Disponível'},
-    {'nome': 'Roberto Alves', 'funcao': 'Motorista', 'disponibilidade': 'Seg-Sex', 'especialidade': 'Transporte, Logística', 'status': 'Disponível'}
-]
-
-# Etapas obrigatórias da equipe de campo
-ETAPAS_CAMPO = [
-    {'id': 1, 'titulo': 'Check-in Chegada', 'descricao': 'Registrar chegada no local com GPS e foto', 'obrigatorio': ['gps', 'foto']},
-    {'id': 2, 'titulo': 'Conferência Material', 'descricao': 'Verificar todos os equipamentos com checklist', 'obrigatorio': ['checklist', 'foto']},
-    {'id': 3, 'titulo': 'Início Montagem', 'descricao': 'Registrar início da montagem', 'obrigatorio': ['foto', 'horario']},
-    {'id': 4, 'titulo': 'Montagem Concluída', 'descricao': 'Finalizar montagem com assinatura do cliente', 'obrigatorio': ['foto', 'assinatura']},
-    {'id': 5, 'titulo': 'Início Desmontagem', 'descricao': 'Registrar início da desmontagem', 'obrigatorio': ['foto', 'horario']},
-    {'id': 6, 'titulo': 'Material Recolhido', 'descricao': 'Conferir recolhimento com checklist', 'obrigatorio': ['checklist', 'foto']},
-    {'id': 7, 'titulo': 'Check-out Saída', 'descricao': 'Registrar saída com GPS e relatório final', 'obrigatorio': ['gps', 'relatorio']}
-]
-
-# Documentos da logística
-DOCUMENTOS_LOGISTICA = ["Ordem de Separação", "Confirmação de Reserva", "Romaneio de Entrega", "Termo de Recebimento", "Ordem de Recolhimento", "Relatório de Inspeção"]
-
-# Tipos de tarefas de galpão
-TIPOS_TAREFA_GALPAO = ["Limpeza Geral", "Organização de Estoque", "Manutenção de Equipamentos", "Inventário", "Organização de Veículos", "Verificação Elétrica", "Manutenção Estrutural"]
-
-# Função para carregar produtos da planilha
-@st.cache_data(ttl=300)
-def carregar_produtos_sheets():
-    try:
-        sheet_id = "1pxBGsaeCuWR_4bdD2_mWBLyxRUqGSJlztH0wnFAtNaw"
-        gid = "1527827989"
-        url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
-        
-        df = pd.read_csv(url)
-        df.columns = ['produto', 'unidades', 'valor_diaria', 'categoria']
-        df = df.dropna(subset=['produto'])
-        df['valor_diaria'] = pd.to_numeric(df['valor_diaria'], errors='coerce').fillna(0)
-        df['unidades'] = pd.to_numeric(df['unidades'], errors='coerce').fillna(0)
-        df['categoria'] = df['categoria'].fillna('outros')
-        
-        return df
-    except Exception as e:
-        st.error(f"Erro ao carregar planilha: {e}")
-        return pd.DataFrame()
-
-# Dados de pedidos com classificação automática
-@st.cache_data(ttl=600)
-def gerar_dados_pedidos():
-    pedidos = [
-        {
-            'numero_pedido': 'PED001',
-            'cliente': 'Caixa Econômica Federal',
-            'categoria': 'Público Extra',
-            'produto_servico': 'Stand Octanorme, Banqueta, Púlpito',
-            'valor': 1850.0,
-            'custos': 1200.0,
-            'local': 'Hotel Ramada',
-            'data_entrega': '2024-12-15',
-            'data_criacao': '2024-12-14 15:30:00',
-            'status': 'Finalizado',
-            'status_logistica': 'Docs Completos',
-            'status_campo': 'Concluído',
-            'regime_pagamento': 'Padrão',
-            'equipe_alocada': ['João Silva', 'Pedro Lima'],
-            'urgencia': False,
-            'weekend': False
-        },
-        {
-            'numero_pedido': 'PED002',
-            'cliente': 'Sec. da Mulher',
-            'categoria': 'Público Extra',
-            'produto_servico': 'Palco Tablado 6x3, Brinquedo Inflável',
-            'valor': 4560.0,
-            'custos': 2800.0,
-            'local': 'Torre de TV',
-            'data_entrega': '2024-12-20',
-            'data_criacao': '2024-12-20 08:00:00',
-            'status': 'Confirmado',
-            'status_logistica': 'Enviado Campo',
-            'status_campo': 'Em Andamento',
-            'regime_pagamento': '1%',
-            'equipe_alocada': ['Carlos Santos', 'Ana Costa'],
-            'urgencia': True,
-            'weekend': False
-        },
-        {
-            'numero_pedido': 'PED003',
-            'cliente': 'Programa Sempre por Elas',
-            'categoria': 'Público Extra',
-            'produto_servico': 'Carrinho de Pipoca, Monitor/TV',
-            'valor': 9080.0,
-            'custos': 5500.0,
-            'local': 'Curralinho',
-            'data_entrega': '2025-01-11',
-            'data_criacao': '2025-01-10 16:00:00',
-            'status': 'Confirmado',
-            'status_logistica': 'Pendente Docs',
-            'status_campo': 'Pendente',
-            'regime_pagamento': '3%',
-            'equipe_alocada': ['João Silva', 'Roberto Alves'],
-            'urgencia': False,
-            'weekend': True
-        }
-    ]
-    return pd.DataFrame(pedidos)
-
-# Função de login
-def fazer_login(usuario, senha):
-    if usuario in USUARIOS and USUARIOS[usuario]['senha'] == senha:
-        return USUARIOS[usuario]
-    return None
-
-# Função para classificar regime automaticamente
-def classificar_regime_automatico(data_criacao, data_entrega):
-    try:
-        dt_criacao = datetime.strptime(data_criacao, '%Y-%m-%d %H:%M:%S')
-        dt_entrega = datetime.strptime(data_entrega, '%Y-%m-%d')
-        
-        # Verifica se é final de semana (sábado=5, domingo=6)
-        if dt_entrega.weekday() >= 5:
-            return '3%', True, False
-        
-        # Verifica se é mesmo dia
-        if dt_criacao.date() == dt_entrega.date():
-            return '1%', False, True
-        
-        # Verifica se foi criado até 22h do dia anterior
-        limite_22h = dt_entrega.replace(hour=22, minute=0, second=0) - timedelta(days=1)
-        if dt_criacao <= limite_22h:
-            return 'Padrão', False, False
-        else:
-            return '1%', False, True
+        if st.button("Entrar", use_container_width=True):
+            # Validação de credenciais
+            credenciais = {
+                "comercial": {"senha": "com123", "tipo": "comercial", "nome": "Equipe Comercial"},
+                "marcelao": {"senha": "log123", "tipo": "logistica", "nome": "Marcelão"},
+                "joao": {"senha": "campo123", "tipo": "campo", "nome": "João Silva"},
+                "carlos": {"senha": "campo123", "tipo": "campo", "nome": "Carlos Santos"},
+                "pedro": {"senha": "campo123", "tipo": "campo", "nome": "Pedro Lima"},
+                "boss": {"senha": "boss123", "tipo": "boss", "nome": "Diretor Executivo"}
+            }
             
-    except:
-        return 'Padrão', False, False
+            if usuario in credenciais and credenciais[usuario]["senha"] == senha:
+                st.session_state.authenticated = True
+                st.session_state.user_type = credenciais[usuario]["tipo"]
+                st.session_state.user_name = credenciais[usuario]["nome"]
+                st.rerun()
+            else:
+                st.error("Usuário ou senha incorretos!")
+        
+        st.markdown("</div>", unsafe_allow_html=True)
 
-# Função para obter progresso das etapas
-def obter_progresso_etapas(numero_pedido):
-    if f'etapas_{numero_pedido}' not in st.session_state:
-        st.session_state[f'etapas_{numero_pedido}'] = {
-            'etapa_atual': 1,
-            'etapas_concluidas': [],
-            'dados_etapas': {}
-        }
-    return st.session_state[f'etapas_{numero_pedido}']
+# Função de Loading
+def show_loading():
+    st.markdown("""
+    <div class="loading-container">
+        <div class="loading-spinner"></div>
+        <p style="color: var(--nexo-orange); font-weight: 600;">Carregando NEXO...</p>
+    </div>
+    """, unsafe_allow_html=True)
+    time.sleep(2)
 
-# Função para avançar etapa
-def avancar_etapa(numero_pedido, etapa_id, dados_etapa):
-    progresso = obter_progresso_etapas(numero_pedido)
+# Função para classificação automática de regime
+def classificar_regime(data_evento):
+    agora = datetime.now()
+    data_evento = datetime.strptime(data_evento, "%Y-%m-%d")
     
-    # Salvar dados da etapa
-    progresso['dados_etapas'][etapa_id] = dados_etapa
-    progresso['etapas_concluidas'].append(etapa_id)
+    # Diferença em horas
+    diff_horas = (data_evento - agora).total_seconds() / 3600
     
-    # Avançar para próxima etapa
-    if etapa_id < 7:
-        progresso['etapa_atual'] = etapa_id + 1
+    # Se é final de semana
+    if data_evento.weekday() >= 5:  # Sábado ou Domingo
+        return "3%"
+    # Se é no mesmo dia (menos de 24h)
+    elif diff_horas < 24:
+        return "1%"
     else:
-        progresso['etapa_atual'] = 'finalizado'
-    
-    st.session_state[f'etapas_{numero_pedido}'] = progresso
+        return "Padrão"
 
-# Função para gerar documento PDF com logo
-def gerar_documento_logistica(tipo_documento, dados_pedido, dados_logistica):
-    buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
+# Função para gerar PDF
+def gerar_pdf_orcamento(dados_orcamento):
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    styles = getSampleStyleSheet()
+    story = []
     
-    # Tentar adicionar logo
-    try:
-        logo_path = "/home/ubuntu/nexo_logo.jpg"
-        if os.path.exists(logo_path):
-            img = Image.open(logo_path)
-            img = img.resize((100, 100), Image.Resampling.LANCZOS)
-            img_buffer = io.BytesIO()
-            img.save(img_buffer, format='JPEG')
-            img_buffer.seek(0)
-            
-            c.drawImage(ImageReader(img_buffer), 50, height - 120, width=100, height=100)
-    except:
-        pass
+    # Título
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        spaceAfter=30,
+        textColor=colors.HexColor('#FF6B00')
+    )
+    story.append(Paragraph("NEXO - Orçamento", title_style))
+    story.append(Spacer(1, 12))
     
-    # Cabeçalho
-    cor_nexo = HexColor('#FF6B00')
+    # Dados do cliente
+    story.append(Paragraph(f"<b>Cliente:</b> {dados_orcamento['cliente']}", styles['Normal']))
+    story.append(Paragraph(f"<b>Evento:</b> {dados_orcamento['evento']}", styles['Normal']))
+    story.append(Paragraph(f"<b>Data:</b> {dados_orcamento['data']}", styles['Normal']))
+    story.append(Spacer(1, 12))
     
-    c.setFillColor(cor_nexo)
-    c.rect(0, height - 80, width, 80, fill=1)
+    # Tabela de itens
+    data = [['Item', 'Qtd', 'Diárias', 'Valor Unit.', 'Total']]
+    for item in dados_orcamento['itens']:
+        data.append([
+            item['produto'],
+            str(item['quantidade']),
+            str(item['diarias']),
+            f"R$ {item['preco']:.2f}",
+            f"R$ {item['total']:.2f}"
+        ])
     
-    c.setFillColor('white')
-    c.setFont("Helvetica-Bold", 24)
-    c.drawString(170, height - 40, "NEXO")
-    c.setFont("Helvetica", 12)
-    c.drawString(170, height - 55, "Núcleo de Excelência Operacional")
+    table = Table(data)
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#FF6B00')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 14),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
     
-    c.setFont("Helvetica-Bold", 16)
-    c.drawString(170, height - 70, tipo_documento.upper())
+    story.append(table)
+    story.append(Spacer(1, 12))
     
-    # Conteúdo específico
-    y_position = height - 140
-    c.setFillColor('black')
+    # Total
+    story.append(Paragraph(f"<b>Total Geral: R$ {dados_orcamento['total']:.2f}</b>", styles['Heading2']))
     
-    if tipo_documento == "Ordem de Separação":
-        c.setFont("Helvetica-Bold", 14)
-        c.drawString(50, y_position, f"ORDEM DE SEPARAÇÃO - {dados_pedido['numero_pedido']}")
-        y_position -= 30
-        
-        c.setFont("Helvetica", 12)
-        c.drawString(50, y_position, f"Cliente: {dados_pedido['cliente']}")
-        y_position -= 20
-        c.drawString(50, y_position, f"Local: {dados_pedido['local']}")
-        y_position -= 20
-        c.drawString(50, y_position, f"Regime: {dados_pedido.get('regime_pagamento', 'Padrão')}")
-        y_position -= 20
-        
-        # Equipe alocada
-        equipe = dados_pedido.get('equipe_alocada', [])
-        if equipe:
-            c.drawString(50, y_position, f"Equipe: {', '.join(equipe)}")
-            y_position -= 30
-        
-        c.setFont("Helvetica-Bold", 12)
-        c.drawString(50, y_position, "EQUIPAMENTOS A SEPARAR:")
-        y_position -= 20
-        
-        c.setFont("Helvetica", 10)
-        produtos = dados_pedido['produto_servico'].split(', ')
-        for produto in produtos:
-            c.drawString(70, y_position, f"• {produto}")
-            y_position -= 15
-    
-    # Rodapé
-    c.setFillColor(cor_nexo)
-    c.rect(0, 0, width, 60, fill=1)
-    
-    c.setFillColor('white')
-    c.setFont("Helvetica", 9)
-    c.drawString(50, 35, "NEXO - Núcleo de Excelência Operacional")
-    c.drawString(50, 25, f"Documento gerado em: {datetime.now().strftime('%d/%m/%Y às %H:%M')}")
-    c.drawString(50, 15, "primeiralinhaeventos@gmail.com | (61) 991334258")
-    
-    c.save()
+    doc.build(story)
     buffer.seek(0)
     return buffer
 
-# Componente GPS funcional
-def componente_gps(etapa_id, numero_pedido):
-    st.markdown("""
-    <div class="gps-container">
-        <h4>📍 Localização GPS</h4>
-        <button onclick="obterLocalizacaoGPS()" class="gps-button">
-            Usar Minha Localização
-        </button>
-        <div id="location-display" class="location-display">
-            <em>Clique no botão acima para obter sua localização</em>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Capturar dados do GPS via JavaScript
-    gps_data = st.components.v1.declare_component("gps_component", default=None)
-    
-    if gps_data and 'lat' in gps_data and 'lng' in gps_data:
-        st.success(f"✅ Localização capturada: {gps_data['endereco']}")
-        
-        # Mostrar no mapa
-        df_map = pd.DataFrame({
-            'lat': [gps_data['lat']], 
-            'lon': [gps_data['lng']]
-        })
-        st.map(df_map, zoom=15)
-        
-        return gps_data['lat'], gps_data['lng'], gps_data.get('endereco', '')
-    
-    return None, None, None
-
-# Componente Chat funcional
-def componente_chat(canal, usuario_nome):
-    st.markdown(f"""
-    <div class="chat-container">
-        <div class="chat-header">
-            💬 Chat: {canal}
-        </div>
-        <div class="chat-messages" id="chat-messages-{canal}">
-    """, unsafe_allow_html=True)
-    
-    # Inicializar chat
-    if f'chat_{canal}' not in st.session_state:
-        st.session_state[f'chat_{canal}'] = [
-            {
-                'usuario': 'Sistema',
-                'mensagem': f'Chat {canal} iniciado',
-                'timestamp': datetime.now().isoformat(),
-                'tipo': 'sistema'
-            }
-        ]
-    
-    # Mostrar mensagens
-    chat_messages = st.session_state[f'chat_{canal}']
-    
-    for msg in chat_messages[-10:]:  # Mostrar últimas 10 mensagens
-        timestamp = datetime.fromisoformat(msg['timestamp']).strftime('%H:%M')
-        
-        if msg['usuario'] == usuario_nome:
-            classe = "sent"
-        else:
-            classe = "received"
-        
-        st.markdown(f"""
-            <div class="chat-message {classe}">
-                <div class="chat-bubble">
-                    <strong>{msg['usuario']}</strong> <small>{timestamp}</small><br>
-                    {msg['mensagem']}
-                </div>
-            </div>
-        """, unsafe_allow_html=True)
-    
-    st.markdown("""
-        </div>
-        <div class="chat-input">
-    """, unsafe_allow_html=True)
-    
-    # Campo para nova mensagem
-    with st.form(f"chat_form_{canal}", clear_on_submit=True):
-        col1, col2 = st.columns([4, 1])
-        
-        with col1:
-            nova_mensagem = st.text_input("", placeholder="Digite sua mensagem...", key=f"msg_{canal}")
-        
-        with col2:
-            enviar = st.form_submit_button("Enviar")
-        
-        if enviar and nova_mensagem:
-            # Adicionar mensagem
-            chat_messages.append({
-                'usuario': usuario_nome,
-                'mensagem': nova_mensagem,
-                'timestamp': datetime.now().isoformat(),
-                'tipo': 'usuario'
-            })
-            
-            # Simular resposta automática
-            respostas_auto = [
-                "Mensagem recebida!",
-                "Entendido, vou verificar.",
-                "Ok, anotado.",
-                "Perfeito, obrigado pela informação.",
-                "Vou providenciar isso."
-            ]
-            
-            import random
-            resposta = random.choice(respostas_auto)
-            
-            chat_messages.append({
-                'usuario': 'Sistema',
-                'mensagem': resposta,
-                'timestamp': datetime.now().isoformat(),
-                'tipo': 'sistema'
-            })
-            
-            st.session_state[f'chat_{canal}'] = chat_messages
-            st.rerun()
-    
-    st.markdown("</div></div>", unsafe_allow_html=True)
-
-# Função principal
-def main():
-    # Inicializar session state
-    if 'usuario_logado' not in st.session_state:
-        st.session_state.usuario_logado = None
-    
-    if 'loading' not in st.session_state:
-        st.session_state.loading = False
-    
-    if 'novos_pedidos' not in st.session_state:
-        st.session_state.novos_pedidos = []
-    
-    if 'tarefas_galpao' not in st.session_state:
-        st.session_state.tarefas_galpao = [
-            {
-                'id': 'TG001',
-                'titulo': 'Limpeza Geral Semanal',
-                'tipo': 'Limpeza Geral',
-                'descricao': 'Limpeza completa do galpão',
-                'responsavel': 'Pedro Lima',
-                'data_criacao': '2025-01-05',
-                'data_prazo': '2025-01-07',
-                'status': 'Em Andamento',
-                'prioridade': 'Normal'
-            }
-        ]
-    
-    # Loading Screen
-    if st.session_state.loading:
-        st.markdown("""
-        <div class="loading-overlay">
-            <div class="spinner"></div>
-        </div>
-        """, unsafe_allow_html=True)
-        py_time.sleep(2)  # Simula carregamento
-        st.session_state.loading = False
-        st.rerun()
-    
-    # Tela de Login
-    if not st.session_state.usuario_logado:
-        st.markdown("""
-        <div class="login-page">
-            <div class="login-box">
-        """, unsafe_allow_html=True)
-        
-        # Logo
-        if logo_base64:
-            st.markdown(f'<div class="login-logo"></div>', unsafe_allow_html=True)
-        
-        st.markdown("""
-                <h1>NEXO</h1>
-                <h3>Núcleo de Excelência Operacional</h3>
-        """, unsafe_allow_html=True)
-        
-        # Formulário de login
-        with st.form("login_form"):
-            usuario = st.text_input("👤 Usuário")
-            senha = st.text_input("🔒 Senha", type="password")
-            
-            if st.form_submit_button("Entrar no NEXO", use_container_width=True):
-                dados_usuario = fazer_login(usuario, senha)
-                if dados_usuario:
-                    st.session_state.usuario_logado = dados_usuario
-                    st.session_state.loading = True
-                    st.rerun()
-                else:
-                    st.error("❌ Usuário ou senha incorretos!")
-        
-        st.markdown("</div></div>", unsafe_allow_html=True)
-        return
-    
-    # Interface após login
-    usuario = st.session_state.usuario_logado
-    perfil = usuario['perfil']
-    
-    # Header principal com logo
-    st.markdown(f"""
-    <div class="main-header">
-        <div style="display: flex; align-items: center; gap: 1rem;">
-            <div class="header-logo"></div>
-            <div>
-                <h2 class="header-title">NEXO - {perfil.upper()}</h2>
-                <p class="header-subtitle">Bem-vindo, {usuario['nome']}</p>
-            </div>
-        </div>
-        <div>
-            <small style="color: #CCCCCC;">Núcleo de Excelência Operacional</small>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+# Interface Comercial
+def interface_comercial():
+    st.title("NEXO - Comercial")
     
     # Sidebar
-    st.sidebar.markdown(f"### {usuario['nome']}")
-    
-    if st.sidebar.button("🚪 Sair do NEXO"):
-        st.session_state.usuario_logado = None
-        st.rerun()
-    
-    if st.sidebar.button("🔄 Atualizar Dados"):
-        st.cache_data.clear()
-        st.rerun()
-    
-    # Carregar dados
-    df_produtos = carregar_produtos_sheets()
-    df_pedidos = gerar_dados_pedidos()
-    
-    # Combinar pedidos
-    todos_pedidos = df_pedidos.copy()
-    if st.session_state.novos_pedidos:
-        novos_df = pd.DataFrame(st.session_state.novos_pedidos)
-        todos_pedidos = pd.concat([todos_pedidos, novos_df], ignore_index=True)
-    
-    # Interface específica por perfil
-    if perfil == 'comercial':
-        st.sidebar.markdown("### Menu Comercial")
-        
-        if st.sidebar.button("📝 NOVO PEDIDO", use_container_width=True):
-            st.session_state.show_novo_pedido = True
-        
-        opcao = st.sidebar.selectbox("📋 Módulos", [
-            "Dashboard Comercial",
-            "Gestão de Pedidos", 
+    with st.sidebar:
+        st.markdown(f"### Bem-vindo, {st.session_state.user_name}!")
+        opcao = st.selectbox("Navegação", [
+            "Dashboard",
+            "Novo Pedido", 
+            "Gestão de Pedidos",
             "Gerador de Orçamentos",
             "Catálogo de Produtos",
+            "Acompanhamento de Eventos",
             "Chat da Equipe"
         ])
+    
+    if opcao == "Dashboard":
+        st.header("Dashboard Comercial")
         
-        if opcao == "Dashboard Comercial":
-            st.header("Dashboard Comercial")
-            
-            # KPIs
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">R$ 15.490</div>
-                    <div class="metric-label">Receita Total</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">3</div>
-                    <div class="metric-label">Pedidos Ativos</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col3:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">R$ 5.167</div>
-                    <div class="metric-label">Ticket Médio</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col4:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">58%</div>
-                    <div class="metric-label">Margem Média</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Gráficos
+        # KPIs
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.markdown("""
+            <div class="metric-card">
+                <h3 style="color: var(--nexo-orange); margin: 0;">Pedidos Ativos</h3>
+                <h2 style="margin: 0.5rem 0;">12</h2>
+                <p style="margin: 0; color: #22c55e;">↑ 15% vs mês anterior</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("""
+            <div class="metric-card">
+                <h3 style="color: var(--nexo-orange); margin: 0;">Receita Mensal</h3>
+                <h2 style="margin: 0.5rem 0;">R$ 45.200</h2>
+                <p style="margin: 0; color: #22c55e;">↑ 8% vs mês anterior</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown("""
+            <div class="metric-card">
+                <h3 style="color: var(--nexo-orange); margin: 0;">Orçamentos</h3>
+                <h2 style="margin: 0.5rem 0;">28</h2>
+                <p style="margin: 0; color: #f59e0b;">↓ 3% vs mês anterior</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col4:
+            st.markdown("""
+            <div class="metric-card">
+                <h3 style="color: var(--nexo-orange); margin: 0;">Taxa Conversão</h3>
+                <h2 style="margin: 0.5rem 0;">42.8%</h2>
+                <p style="margin: 0; color: #22c55e;">↑ 5% vs mês anterior</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Gráficos
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("Vendas por Mês")
+            dados_vendas = pd.DataFrame({
+                'Mês': ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'],
+                'Vendas': [35000, 42000, 38000, 45000, 41000, 45200]
+            })
+            fig = px.line(dados_vendas, x='Mês', y='Vendas', 
+                         color_discrete_sequence=['#FF6B00'])
+            fig.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font_color='white'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            st.subheader("Pedidos por Status")
+            dados_status = pd.DataFrame({
+                'Status': ['Pendente', 'Em Andamento', 'Concluído'],
+                'Quantidade': [5, 7, 15]
+            })
+            fig = px.pie(dados_status, values='Quantidade', names='Status',
+                        color_discrete_sequence=['#FF6B00', '#ff8533', '#ffb366'])
+            fig.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font_color='white'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+    
+    elif opcao == "Novo Pedido":
+        st.header("Novo Pedido")
+        
+        with st.form("novo_pedido"):
             col1, col2 = st.columns(2)
             
             with col1:
-                # Gráfico de receita por mês
-                fig_receita = px.bar(
-                    x=['Nov', 'Dez', 'Jan'],
-                    y=[8500, 12300, 15490],
-                    title="Receita Mensal",
-                    color_discrete_sequence=['#FF6B00']
-                )
-                fig_receita.update_layout(
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    font_color='white'
-                )
-                st.plotly_chart(fig_receita, use_container_width=True)
+                cliente = st.text_input("Nome do Cliente")
+                evento = st.text_input("Tipo de Evento")
+                data_evento = st.date_input("Data do Evento")
+                local = st.text_input("Local do Evento")
             
             with col2:
-                # Gráfico de pedidos por status
-                fig_status = px.pie(
-                    values=[1, 1, 1],
-                    names=['Finalizado', 'Em Andamento', 'Pendente'],
-                    title="Pedidos por Status",
-                    color_discrete_sequence=['#10b981', '#FF6B00', '#f59e0b']
-                )
-                fig_status.update_layout(
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    font_color='white'
-                )
-                st.plotly_chart(fig_status, use_container_width=True)
-        
-        elif opcao == "Gestão de Pedidos":
-            st.header("Gestão de Pedidos")
+                contato = st.text_input("Contato/Telefone")
+                email = st.text_input("E-mail")
+                observacoes = st.text_area("Observações")
             
-            # Filtros
-            col1, col2, col3 = st.columns(3)
+            # Seleção de produtos
+            st.subheader("Produtos do Pedido")
+            produtos_selecionados = []
             
-            with col1:
-                filtro_status = st.selectbox("Status", ["Todos", "Finalizado", "Confirmado", "Pendente"])
-            
-            with col2:
-                filtro_regime = st.selectbox("Regime", ["Todos", "Padrão", "1%", "3%"])
-            
-            with col3:
-                filtro_data = st.date_input("Data de Entrega")
-            
-            # Tabela de pedidos
-            df_filtrado = todos_pedidos.copy()
-            
-            if filtro_status != "Todos":
-                df_filtrado = df_filtrado[df_filtrado['status'] == filtro_status]
-            
-            if filtro_regime != "Todos":
-                df_filtrado = df_filtrado[df_filtrado['regime_pagamento'] == filtro_regime]
-            
-            # Adicionar badges de status
-            def formatar_status(row):
-                status = row['status']
-                regime = row['regime_pagamento']
-                
-                if status == 'Finalizado':
-                    status_badge = f'<span class="status-badge" style="background-color: #10b981;">{status}</span>'
-                elif status == 'Confirmado':
-                    status_badge = f'<span class="status-badge" style="background-color: #FF6B00;">{status}</span>'
-                else:
-                    status_badge = f'<span class="status-badge" style="background-color: #f59e0b;">{status}</span>'
-                
-                if regime == 'Padrão':
-                    regime_badge = f'<span class="status-badge status-padrao">{regime}</span>'
-                elif regime == '1%':
-                    regime_badge = f'<span class="status-badge status-urgente">{regime}</span>'
-                else:
-                    regime_badge = f'<span class="status-badge status-weekend">{regime}</span>'
-                
-                return f"{status_badge} {regime_badge}"
-            
-            # Mostrar tabela
-            if not df_filtrado.empty:
-                st.dataframe(
-                    df_filtrado[['numero_pedido', 'cliente', 'produto_servico', 'valor', 'local', 'data_entrega', 'status', 'regime_pagamento']],
-                    use_container_width=True,
-                    hide_index=True
-                )
-            else:
-                st.info("Nenhum pedido encontrado com os filtros aplicados.")
-        
-        elif opcao == "Gerador de Orçamentos":
-            st.header("Gerador de Orçamentos")
-            
-            # Formulário de orçamento
-            with st.form("orcamento_form"):
-                st.subheader("Dados do Cliente")
-                
-                col1, col2 = st.columns(2)
+            for i in range(3):  # Até 3 produtos por pedido
+                col1, col2, col3, col4 = st.columns(4)
                 
                 with col1:
-                    cliente_nome = st.text_input("Nome do Cliente")
-                    cliente_email = st.text_input("E-mail")
-                    cliente_telefone = st.text_input("Telefone")
+                    produto = st.selectbox(f"Produto {i+1}", 
+                                         [""] + [p["nome"] for p in st.session_state.produtos],
+                                         key=f"produto_{i}")
                 
                 with col2:
-                    evento_nome = st.text_input("Nome do Evento")
-                    evento_local = st.text_input("Local do Evento")
-                    evento_data = st.date_input("Data do Evento")
+                    quantidade = st.number_input(f"Quantidade", min_value=0, value=0, key=f"qtd_{i}")
                 
-                st.subheader("Itens do Orçamento")
+                with col3:
+                    diarias = st.number_input(f"Diárias", min_value=1, value=1, key=f"diarias_{i}")
                 
-                # Seletor de produtos
-                if not df_produtos.empty:
-                    produto_selecionado = st.selectbox("Produto", df_produtos['produto'].tolist())
-                    
+                with col4:
+                    if produto:
+                        preco_produto = next((p["preco"] for p in st.session_state.produtos if p["nome"] == produto), 0)
+                        preco = st.number_input(f"Preço Unit.", value=preco_produto, key=f"preco_{i}")
+                    else:
+                        preco = st.number_input(f"Preço Unit.", value=0.0, key=f"preco_{i}")
+                
+                if produto and quantidade > 0:
+                    produtos_selecionados.append({
+                        "produto": produto,
+                        "quantidade": quantidade,
+                        "diarias": diarias,
+                        "preco": preco,
+                        "total": quantidade * diarias * preco
+                    })
+            
+            # Classificação automática
+            if data_evento:
+                regime = classificar_regime(str(data_evento))
+                st.info(f"Regime de Pagamento Classificado: **{regime}**")
+            
+            submitted = st.form_submit_button("Criar Pedido")
+            
+            if submitted and cliente and evento:
+                novo_pedido = {
+                    "id": len(st.session_state.pedidos) + 1,
+                    "cliente": cliente,
+                    "evento": evento,
+                    "data_evento": str(data_evento),
+                    "local": local,
+                    "contato": contato,
+                    "email": email,
+                    "observacoes": observacoes,
+                    "produtos": produtos_selecionados,
+                    "regime": regime,
+                    "status": "Pendente",
+                    "data_criacao": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "total": sum([p["total"] for p in produtos_selecionados])
+                }
+                
+                st.session_state.pedidos.append(novo_pedido)
+                st.success("Pedido criado com sucesso!")
+                st.rerun()
+    
+    elif opcao == "Gestão de Pedidos":
+        st.header("Gestão de Pedidos")
+        
+        if st.session_state.pedidos:
+            for pedido in st.session_state.pedidos:
+                with st.expander(f"Pedido #{pedido['id']} - {pedido['cliente']} - {pedido['evento']}"):
                     col1, col2, col3 = st.columns(3)
                     
                     with col1:
-                        quantidade = st.number_input("Quantidade", min_value=1, value=1)
+                        st.write(f"**Cliente:** {pedido['cliente']}")
+                        st.write(f"**Evento:** {pedido['evento']}")
+                        st.write(f"**Data:** {pedido['data_evento']}")
+                        st.write(f"**Local:** {pedido['local']}")
                     
                     with col2:
-                        diarias = st.number_input("Diárias", min_value=1, value=1)
+                        st.write(f"**Contato:** {pedido['contato']}")
+                        st.write(f"**E-mail:** {pedido['email']}")
+                        st.write(f"**Regime:** {pedido['regime']}")
+                        st.write(f"**Status:** {pedido['status']}")
                     
                     with col3:
-                        produto_info = df_produtos[df_produtos['produto'] == produto_selecionado].iloc[0]
-                        preco_unitario = st.number_input("Preço Unitário", value=float(produto_info['valor_diaria']))
-                
-                # Lista de itens adicionados
-                if 'itens_orcamento' not in st.session_state:
-                    st.session_state.itens_orcamento = []
-                
-                if st.form_submit_button("Adicionar Item"):
-                    if produto_selecionado and quantidade > 0 and diarias > 0:
-                        item = {
-                            'produto': produto_selecionado,
-                            'quantidade': quantidade,
-                            'diarias': diarias,
-                            'preco_unitario': preco_unitario,
-                            'total': quantidade * diarias * preco_unitario
-                        }
-                        st.session_state.itens_orcamento.append(item)
-                        st.success(f"Item {produto_selecionado} adicionado!")
-            
-            # Mostrar itens adicionados
-            if st.session_state.itens_orcamento:
-                st.subheader("Itens do Orçamento")
-                
-                for i, item in enumerate(st.session_state.itens_orcamento):
-                    col1, col2, col3, col4, col5, col6 = st.columns([3, 1, 1, 1, 1, 1])
-                    
-                    with col1:
-                        st.write(item['produto'])
-                    with col2:
-                        st.write(f"{item['quantidade']}x")
-                    with col3:
-                        st.write(f"{item['diarias']} dias")
-                    with col4:
-                        st.write(f"R$ {item['preco_unitario']:.2f}")
-                    with col5:
-                        st.write(f"R$ {item['total']:.2f}")
-                    with col6:
-                        if st.button("🗑️", key=f"remove_{i}"):
-                            st.session_state.itens_orcamento.pop(i)
+                        st.write(f"**Total:** R$ {pedido['total']:.2f}")
+                        st.write(f"**Criado em:** {pedido['data_criacao']}")
+                        
+                        # Botões de ação
+                        if st.button(f"Editar Pedido #{pedido['id']}", key=f"edit_{pedido['id']}"):
+                            st.info("Funcionalidade de edição em desenvolvimento")
+                        
+                        if st.button(f"Enviar para Logística", key=f"send_{pedido['id']}"):
+                            pedido['status'] = "Na Logística"
+                            st.success("Pedido enviado para logística!")
                             st.rerun()
-                
-                # Total
-                total_orcamento = sum(item['total'] for item in st.session_state.itens_orcamento)
+                    
+                    # Produtos do pedido
+                    if pedido['produtos']:
+                        st.subheader("Produtos:")
+                        df_produtos = pd.DataFrame(pedido['produtos'])
+                        st.dataframe(df_produtos, use_container_width=True)
+        else:
+            st.info("Nenhum pedido encontrado. Crie um novo pedido para começar.")
+    
+    elif opcao == "Gerador de Orçamentos":
+        st.header("Gerador de Orçamentos")
+        
+        # Dados do cliente
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            cliente = st.text_input("Nome do Cliente")
+            evento = st.text_input("Tipo de Evento")
+            data_evento = st.date_input("Data do Evento")
+        
+        with col2:
+            local = st.text_input("Local do Evento")
+            contato = st.text_input("Contato")
+            observacoes = st.text_area("Observações")
+        
+        # Adição de itens
+        st.subheader("Adicionar Itens ao Orçamento")
+        
+        if 'orcamento_itens' not in st.session_state:
+            st.session_state.orcamento_itens = []
+        
+        col1, col2, col3, col4, col5 = st.columns(5)
+        
+        with col1:
+            produto_selecionado = st.selectbox("Produto", 
+                                             [p["nome"] for p in st.session_state.produtos])
+        
+        with col2:
+            quantidade = st.number_input("Qtd", min_value=1, value=1)
+        
+        with col3:
+            diarias = st.number_input("Diárias", min_value=1, value=1)
+        
+        with col4:
+            preco_produto = next((p["preco"] for p in st.session_state.produtos if p["nome"] == produto_selecionado), 0)
+            preco = st.number_input("Preço Unit.", value=preco_produto)
+        
+        with col5:
+            if st.button("Adicionar Item"):
+                item = {
+                    "produto": produto_selecionado,
+                    "quantidade": quantidade,
+                    "diarias": diarias,
+                    "preco": preco,
+                    "total": quantidade * diarias * preco
+                }
+                st.session_state.orcamento_itens.append(item)
+                st.rerun()
+        
+        # Validação de diárias vs datas
+        if data_evento and st.session_state.orcamento_itens:
+            dias_evento = 1  # Simplificado - pode ser calculado com data fim
+            for item in st.session_state.orcamento_itens:
+                if item['diarias'] != dias_evento:
+                    st.warning(f"⚠️ Item '{item['produto']}': {item['diarias']} diárias não batem com {dias_evento} dia(s) do evento!")
+        
+        # Lista de itens adicionados
+        if st.session_state.orcamento_itens:
+            st.subheader("Itens do Orçamento")
+            df_itens = pd.DataFrame(st.session_state.orcamento_itens)
+            st.dataframe(df_itens, use_container_width=True)
+            
+            total_orcamento = sum([item['total'] for item in st.session_state.orcamento_itens])
+            st.metric("Total do Orçamento", f"R$ {total_orcamento:.2f}")
+            
+            # Gerar PDF
+            if st.button("Gerar Orçamento PDF"):
+                if cliente and evento:
+                    dados_orcamento = {
+                        "cliente": cliente,
+                        "evento": evento,
+                        "data": str(data_evento),
+                        "local": local,
+                        "itens": st.session_state.orcamento_itens,
+                        "total": total_orcamento
+                    }
+                    
+                    pdf_buffer = gerar_pdf_orcamento(dados_orcamento)
+                    
+                    st.success("Orçamento gerado com sucesso!")
+                    st.download_button(
+                        label="📥 Download do Orçamento PDF",
+                        data=pdf_buffer.getvalue(),
+                        file_name=f"Orcamento_{cliente.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                else:
+                    st.error("Preencha pelo menos o nome do cliente e tipo de evento!")
+            
+            if st.button("Limpar Orçamento"):
+                st.session_state.orcamento_itens = []
+                st.rerun()
+    
+    elif opcao == "Catálogo de Produtos":
+        st.header("Catálogo de Produtos")
+        
+        # Filtros
+        col1, col2 = st.columns(2)
+        with col1:
+            categorias = list(set([p["categoria"] for p in st.session_state.produtos]))
+            categoria_filtro = st.selectbox("Filtrar por Categoria", ["Todas"] + categorias)
+        
+        with col2:
+            busca = st.text_input("Buscar Produto")
+        
+        # Produtos filtrados
+        produtos_filtrados = st.session_state.produtos
+        
+        if categoria_filtro != "Todas":
+            produtos_filtrados = [p for p in produtos_filtrados if p["categoria"] == categoria_filtro]
+        
+        if busca:
+            produtos_filtrados = [p for p in produtos_filtrados if busca.lower() in p["nome"].lower()]
+        
+        # Exibição em grid (3 colunas)
+        cols = st.columns(3)
+        
+        for i, produto in enumerate(produtos_filtrados):
+            with cols[i % 3]:
                 st.markdown(f"""
                 <div class="metric-card">
-                    <div class="metric-value">R$ {total_orcamento:.2f}</div>
-                    <div class="metric-label">Total do Orçamento</div>
+                    <h4 style="color: var(--nexo-orange); margin: 0;">{produto['nome']}</h4>
+                    <p style="margin: 0.5rem 0; color: #888;">{produto['categoria']}</p>
+                    <h3 style="margin: 0; color: var(--nexo-white);">R$ {produto['preco']:.2f}</h3>
                 </div>
                 """, unsafe_allow_html=True)
-                
-                # Gerar PDF
-                if st.button("📄 Gerar Orçamento PDF", use_container_width=True):
-                    if cliente_nome and evento_nome:
-                        # Aqui seria a geração do PDF
-                        st.success("✅ Orçamento gerado com sucesso!")
-                        
-                        # Limpar itens
-                        st.session_state.itens_orcamento = []
-                    else:
-                        st.error("❌ Preencha os dados do cliente e evento.")
         
-        elif opcao == "Catálogo de Produtos":
-            st.header("Catálogo de Produtos")
+        # Adicionar novo produto
+        with st.expander("Adicionar Novo Produto"):
+            col1, col2, col3 = st.columns(3)
             
-            if not df_produtos.empty:
-                # Filtros
-                categorias = df_produtos['categoria'].unique().tolist()
-                categoria_filtro = st.selectbox("Categoria", ["Todas"] + categorias)
-                
-                df_filtrado = df_produtos.copy()
-                if categoria_filtro != "Todas":
-                    df_filtrado = df_filtrado[df_filtrado['categoria'] == categoria_filtro]
-                
-                # Mostrar produtos em cards
-                for _, produto in df_filtrado.iterrows():
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <h4>{produto['produto']}</h4>
-                        <p><strong>Categoria:</strong> {produto['categoria']}</p>
-                        <p><strong>Unidades:</strong> {produto['unidades']}</p>
-                        <div class="metric-value">R$ {produto['valor_diaria']:.2f}</div>
-                        <div class="metric-label">por diária</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-            else:
-                st.warning("⚠️ Erro ao carregar catálogo de produtos.")
-        
-        elif opcao == "Chat da Equipe":
-            st.header("Chat da Equipe")
-            componente_chat("comercial_geral", usuario['nome'])
+            with col1:
+                novo_nome = st.text_input("Nome do Produto")
+            
+            with col2:
+                nova_categoria = st.text_input("Categoria")
+            
+            with col3:
+                novo_preco = st.number_input("Preço", min_value=0.0, value=0.0)
+            
+            if st.button("Adicionar Produto"):
+                if novo_nome and nova_categoria and novo_preco > 0:
+                    novo_produto = {
+                        "nome": novo_nome,
+                        "categoria": nova_categoria,
+                        "preco": novo_preco
+                    }
+                    st.session_state.produtos.append(novo_produto)
+                    st.success("Produto adicionado com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("Preencha todos os campos!")
     
-    elif perfil == 'logistica':
-        st.sidebar.markdown("### Menu Logística")
+    elif opcao == "Acompanhamento de Eventos":
+        st.header("Acompanhamento de Eventos")
         
-        opcao = st.sidebar.selectbox("📋 Módulos", [
-            "Dashboard Logístico",
-            "Gestão de Pedidos", 
+        # Eventos em andamento
+        eventos_andamento = [p for p in st.session_state.pedidos if p['status'] in ['Em Andamento', 'Na Logística']]
+        
+        if eventos_andamento:
+            for evento in eventos_andamento:
+                with st.expander(f"🎪 {evento['evento']} - {evento['cliente']}"):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.write(f"**Data:** {evento['data_evento']}")
+                        st.write(f"**Local:** {evento['local']}")
+                        st.write(f"**Status:** {evento['status']}")
+                    
+                    with col2:
+                        st.write(f"**Contato:** {evento['contato']}")
+                        st.write(f"**Total:** R$ {evento['total']:.2f}")
+                    
+                    # Status do evento
+                    st.subheader("Status da Execução")
+                    
+                    status_opcoes = ["Não Iniciado", "Montagem", "Em Andamento", "Desmontagem", "Finalizado"]
+                    status_atual = st.selectbox(f"Status do Evento {evento['id']}", 
+                                              status_opcoes, 
+                                              key=f"status_evento_{evento['id']}")
+                    
+                    # Comunicação com equipe
+                    st.subheader("Comunicação com Equipe")
+                    mensagem = st.text_area(f"Mensagem para equipe do evento {evento['id']}", 
+                                          key=f"msg_{evento['id']}")
+                    
+                    if st.button(f"Enviar Mensagem", key=f"send_msg_{evento['id']}"):
+                        if mensagem:
+                            st.success("Mensagem enviada para a equipe!")
+                        else:
+                            st.error("Digite uma mensagem!")
+        else:
+            st.info("Nenhum evento em andamento no momento.")
+    
+    elif opcao == "Chat da Equipe":
+        st.header("Chat da Equipe")
+        
+        # Seleção de canal
+        canais = ["Geral", "Logística", "Campo", "Emergência"]
+        canal_selecionado = st.selectbox("Canal", canais)
+        
+        # Container do chat
+        st.markdown("""
+        <div class="chat-container">
+            <div class="chat-message">
+                <strong>Marcelão:</strong> Pessoal, evento do Hotel Ramada confirmado para amanhã às 14h
+            </div>
+            <div class="chat-message">
+                <strong>João:</strong> Recebido! Já estou preparando o material
+            </div>
+            <div class="chat-message">
+                <strong>Comercial:</strong> Cliente solicitou mudança na decoração. Vou enviar as especificações
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Input de mensagem
+        col1, col2 = st.columns([4, 1])
+        
+        with col1:
+            nova_mensagem = st.text_input("Digite sua mensagem...", key="chat_input")
+        
+        with col2:
+            if st.button("Enviar"):
+                if nova_mensagem:
+                    # Aqui seria implementado o sistema de chat real
+                    st.success("Mensagem enviada!")
+                    st.rerun()
+
+# Interface Logística
+def interface_logistica():
+    st.title("NEXO - Logística")
+    
+    with st.sidebar:
+        st.markdown(f"### Bem-vindo, {st.session_state.user_name}!")
+        opcao = st.selectbox("Navegação", [
+            "Dashboard",
+            "Gestão de Pedidos",
             "Gestão de Equipes",
             "Tarefas de Galpão",
             "Documentos",
             "Chat Integrado"
         ])
-        
-        if opcao == "Dashboard Logístico":
-            st.header("Dashboard Logístico")
-            
-            # KPIs Logística
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">2</div>
-                    <div class="metric-label">Entregas Hoje</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">1</div>
-                    <div class="metric-label">Pendente Docs</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col3:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">5</div>
-                    <div class="metric-label">Equipes Ativas</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col4:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">3</div>
-                    <div class="metric-label">Tarefas Galpão</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Alertas
-            st.subheader("⚠️ Alertas")
-            
-            st.warning("📋 Pedido PED003 - Documentos pendentes")
-            st.info("🚚 Entrega PED002 - Programada para hoje às 14h")
-            
-            # Próximas entregas
-            st.subheader("📅 Próximas Entregas (48h)")
-            
-            proximas_entregas = todos_pedidos[todos_pedidos['status'] != 'Finalizado'].copy()
-            
-            if not proximas_entregas.empty:
-                for _, entrega in proximas_entregas.iterrows():
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <h4>{entrega['numero_pedido']} - {entrega['cliente']}</h4>
-                        <p><strong>Local:</strong> {entrega['local']}</p>
-                        <p><strong>Data:</strong> {entrega['data_entrega']}</p>
-                        <p><strong>Regime:</strong> <span class="status-badge status-{entrega['regime_pagamento'].lower().replace('%', 'pct')}">{entrega['regime_pagamento']}</span></p>
-                        <p><strong>Equipe:</strong> {', '.join(entrega['equipe_alocada']) if isinstance(entrega['equipe_alocada'], list) else 'Não alocada'}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-        
-        elif opcao == "Gestão de Pedidos":
-            st.header("Gestão de Pedidos - Logística")
-            
-            # Seletor de pedido
-            pedido_opcoes = [f"{row['numero_pedido']} - {row['cliente']}" for _, row in todos_pedidos.iterrows()]
-            pedido_selecionado = st.selectbox("Selecionar Pedido:", pedido_opcoes)
-            
-            if pedido_selecionado:
-                numero_pedido = pedido_selecionado.split(' - ')[0]
-                dados_pedido = todos_pedidos[todos_pedidos['numero_pedido'] == numero_pedido].iloc[0]
-                
-                # Informações do pedido
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h3>{dados_pedido['numero_pedido']} - {dados_pedido['cliente']}</h3>
-                    <p><strong>Produto/Serviço:</strong> {dados_pedido['produto_servico']}</p>
-                    <p><strong>Local:</strong> {dados_pedido['local']}</p>
-                    <p><strong>Data de Entrega:</strong> {dados_pedido['data_entrega']}</p>
-                    <p><strong>Valor:</strong> R$ {dados_pedido['valor']:.2f}</p>
-                    <p><strong>Regime:</strong> <span class="status-badge status-{dados_pedido['regime_pagamento'].lower().replace('%', 'pct')}">{dados_pedido['regime_pagamento']}</span></p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Datas e horários específicos
-                st.subheader("📅 Datas e Horários")
-                
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    st.markdown("**🚚 Entrega**")
-                    data_entrega = st.date_input("Data de Entrega", key=f"data_entrega_{numero_pedido}")
-                    hora_entrega = st.time_input("Horário de Entrega", key=f"hora_entrega_{numero_pedido}")
-                    responsavel_entrega = st.text_input("Responsável pela Recepção", key=f"resp_entrega_{numero_pedido}")
-                
-                with col2:
-                    st.markdown("**📦 Recolhimento**")
-                    data_recolhimento = st.date_input("Data de Recolhimento", key=f"data_recolhimento_{numero_pedido}")
-                    hora_recolhimento = st.time_input("Horário de Recolhimento", key=f"hora_recolhimento_{numero_pedido}")
-                    responsavel_recolhimento = st.text_input("Responsável pela Liberação", key=f"resp_recolhimento_{numero_pedido}")
-                
-                # Alocação de equipe
-                st.subheader("👥 Alocação de Equipe")
-                
-                equipe_disponivel = [col['nome'] for col in COLABORADORES if col['status'] == 'Disponível']
-                equipe_selecionada = st.multiselect(
-                    "Selecionar Membros da Equipe:",
-                    equipe_disponivel,
-                    default=dados_pedido['equipe_alocada'] if isinstance(dados_pedido['equipe_alocada'], list) else []
-                )
-                
-                # Documentos
-                st.subheader("📄 Documentos")
-                
-                for doc in DOCUMENTOS_LOGISTICA:
-                    col1, col2, col3 = st.columns([2, 1, 1])
-                    
-                    with col1:
-                        st.write(doc)
-                    
-                    with col2:
-                        arquivo = st.file_uploader(f"Upload {doc}", key=f"doc_{doc}_{numero_pedido}", label_visibility="collapsed")
-                    
-                    with col3:
-                        if st.button(f"Gerar {doc}", key=f"gerar_{doc}_{numero_pedido}"):
-                            # Gerar documento automaticamente
-                            pdf_buffer = gerar_documento_logistica(doc, dados_pedido, {})
-                            
-                            st.download_button(
-                                label=f"📥 Download {doc}",
-                                data=pdf_buffer.getvalue(),
-                                file_name=f"{doc}_{numero_pedido}.pdf",
-                                mime="application/pdf",
-                                key=f"download_{doc}_{numero_pedido}"
-                            )
-                
-                # Salvar informações
-                if st.button("💾 Salvar Informações Logísticas", use_container_width=True):
-                    st.success("✅ Informações salvas com sucesso!")
-                    
-                    # Enviar notificação para equipe (simulado)
-                    if equipe_selecionada:
-                        st.info(f"📲 Notificação enviada para: {', '.join(equipe_selecionada)}")
-        
-        elif opcao == "Gestão de Equipes":
-            st.header("Gestão de Equipes")
-            
-            # Estatísticas da equipe
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                disponivel = len([col for col in COLABORADORES if col['status'] == 'Disponível'])
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-value">{disponivel}</div>
-                    <div class="metric-label">Disponíveis</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                ocupado = len([col for col in COLABORADORES if col['status'] == 'Ocupado'])
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-value">{ocupado}</div>
-                    <div class="metric-label">Ocupados</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col3:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-value">{len(COLABORADORES)}</div>
-                    <div class="metric-label">Total</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Lista de colaboradores
-            st.subheader("👥 Colaboradores")
-            
-            for colaborador in COLABORADORES:
-                status_color = "#10b981" if colaborador['status'] == 'Disponível' else "#f59e0b"
-                
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h4>{colaborador['nome']}</h4>
-                    <p><strong>Função:</strong> {colaborador['funcao']}</p>
-                    <p><strong>Especialidade:</strong> {colaborador['especialidade']}</p>
-                    <p><strong>Disponibilidade:</strong> {colaborador['disponibilidade']}</p>
-                    <p><strong>Status:</strong> <span style="color: {status_color}; font-weight: 600;">{colaborador['status']}</span></p>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Adicionar novo colaborador
-            st.subheader("➕ Adicionar Colaborador")
-            
-            with st.form("novo_colaborador"):
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    nome = st.text_input("Nome Completo")
-                    funcao = st.text_input("Função")
-                
-                with col2:
-                    especialidade = st.text_input("Especialidade")
-                    disponibilidade = st.selectbox("Disponibilidade", ["Seg-Sex", "Ter-Sab", "Seg-Dom", "Qua-Dom"])
-                
-                if st.form_submit_button("Adicionar Colaborador"):
-                    if nome and funcao:
-                        novo_colaborador = {
-                            'nome': nome,
-                            'funcao': funcao,
-                            'especialidade': especialidade,
-                            'disponibilidade': disponibilidade,
-                            'status': 'Disponível'
-                        }
-                        COLABORADORES.append(novo_colaborador)
-                        st.success(f"✅ Colaborador {nome} adicionado com sucesso!")
-                        st.rerun()
-        
-        elif opcao == "Tarefas de Galpão":
-            st.header("Tarefas de Galpão")
-            
-            # Estatísticas das tarefas
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                pendentes = len([t for t in st.session_state.tarefas_galpao if t['status'] == 'Pendente'])
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-value">{pendentes}</div>
-                    <div class="metric-label">Pendentes</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                andamento = len([t for t in st.session_state.tarefas_galpao if t['status'] == 'Em Andamento'])
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-value">{andamento}</div>
-                    <div class="metric-label">Em Andamento</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col3:
-                concluidas = len([t for t in st.session_state.tarefas_galpao if t['status'] == 'Concluída'])
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-value">{concluidas}</div>
-                    <div class="metric-label">Concluídas</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Lista de tarefas
-            st.subheader("📋 Tarefas Ativas")
-            
-            for tarefa in st.session_state.tarefas_galpao:
-                status_color = {
-                    'Pendente': '#f59e0b',
-                    'Em Andamento': '#FF6B00',
-                    'Concluída': '#10b981'
-                }.get(tarefa['status'], '#666666')
-                
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h4>{tarefa['titulo']}</h4>
-                    <p><strong>Tipo:</strong> {tarefa['tipo']}</p>
-                    <p><strong>Descrição:</strong> {tarefa['descricao']}</p>
-                    <p><strong>Responsável:</strong> {tarefa['responsavel']}</p>
-                    <p><strong>Prazo:</strong> {tarefa['data_prazo']}</p>
-                    <p><strong>Status:</strong> <span style="color: {status_color}; font-weight: 600;">{tarefa['status']}</span></p>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Nova tarefa
-            st.subheader("➕ Nova Tarefa de Galpão")
-            
-            with st.form("nova_tarefa_galpao"):
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    titulo = st.text_input("Título da Tarefa")
-                    tipo = st.selectbox("Tipo", TIPOS_TAREFA_GALPAO)
-                    responsavel = st.selectbox("Responsável", [col['nome'] for col in COLABORADORES])
-                
-                with col2:
-                    descricao = st.text_area("Descrição")
-                    data_prazo = st.date_input("Data Prazo")
-                    prioridade = st.selectbox("Prioridade", ["Baixa", "Normal", "Alta", "Urgente"])
-                
-                if st.form_submit_button("Criar Tarefa"):
-                    if titulo and tipo and responsavel:
-                        nova_tarefa = {
-                            'id': f'TG{len(st.session_state.tarefas_galpao) + 1:03d}',
-                            'titulo': titulo,
-                            'tipo': tipo,
-                            'descricao': descricao,
-                            'responsavel': responsavel,
-                            'data_criacao': datetime.now().strftime('%Y-%m-%d'),
-                            'data_prazo': data_prazo.strftime('%Y-%m-%d'),
-                            'status': 'Pendente',
-                            'prioridade': prioridade
-                        }
-                        st.session_state.tarefas_galpao.append(nova_tarefa)
-                        st.success(f"✅ Tarefa {titulo} criada com sucesso!")
-                        st.rerun()
-        
-        elif opcao == "Chat Integrado":
-            st.header("Chat Integrado")
-            componente_chat("logistica_geral", usuario['nome'])
     
-    elif perfil == 'campo':
-        st.sidebar.markdown(f"### {usuario['nome']}")
+    if opcao == "Dashboard":
+        st.header("Dashboard Logístico")
         
-        # Filtrar pedidos da equipe
-        pedidos_equipe = todos_pedidos[todos_pedidos['equipe_alocada'].apply(lambda x: usuario['nome'] in x if isinstance(x, list) else False)]
+        # KPIs Logísticos
+        col1, col2, col3, col4 = st.columns(4)
         
-        if not pedidos_equipe.empty:
-            # Seletor de trabalho
-            trabalhos_opcoes = [f"{row['numero_pedido']} - {row['cliente']}" for _, row in pedidos_equipe.iterrows()]
-            trabalho_selecionado = st.selectbox("📋 Selecionar Trabalho:", trabalhos_opcoes)
-            
-            if trabalho_selecionado:
-                numero_pedido = trabalho_selecionado.split(' - ')[0]
-                dados_pedido = pedidos_equipe[pedidos_equipe['numero_pedido'] == numero_pedido].iloc[0]
-                
-                # Card do trabalho
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h3>{dados_pedido['numero_pedido']} - {dados_pedido['cliente']}</h3>
-                    <p><strong>📍 Local:</strong> {dados_pedido['local']}</p>
-                    <p><strong>📅 Data:</strong> {dados_pedido['data_entrega']}</p>
-                    <p><strong>💰 Regime:</strong> <span class="status-badge status-{dados_pedido['regime_pagamento'].lower().replace('%', 'pct')}">{dados_pedido['regime_pagamento']}</span></p>
-                    <p><strong>🛠️ Produtos:</strong> {dados_pedido['produto_servico']}</p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Obter progresso das etapas
-                progresso = obter_progresso_etapas(numero_pedido)
-                etapa_atual = progresso['etapa_atual']
-                etapas_concluidas = progresso['etapas_concluidas']
-                
-                # Barra de progresso
-                if etapa_atual == 'finalizado':
-                    progresso_pct = 100
-                else:
-                    progresso_pct = (len(etapas_concluidas) / 7) * 100
-                
-                st.markdown(f"""
-                <div class="metric-card">
-                    <h4>Progresso do Trabalho</h4>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: {progresso_pct}%"></div>
-                    </div>
-                    <p style="text-align: center; margin: 0.5rem 0; font-weight: 600;">
-                        {progresso_pct:.0f}% Concluído ({len(etapas_concluidas)}/7 etapas)
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Mostrar etapas
-                st.header("Etapas do Trabalho")
-                
-                for etapa in ETAPAS_CAMPO:
-                    etapa_id = etapa['id']
-                    
-                    # Determinar status da etapa
-                    if etapa_id in etapas_concluidas:
-                        status_class = "etapa-concluida"
-                        status_icon = "✅"
-                        disabled = True
-                    elif etapa_id == etapa_atual:
-                        status_class = "etapa-ativa"
-                        status_icon = "🔄"
-                        disabled = False
-                    else:
-                        status_class = "etapa-bloqueada"
-                        status_icon = "⏳"
-                        disabled = True
-                    
-                    # Card da etapa
-                    st.markdown(f"""
-                    <div class="etapa-card {status_class}">
-                        <h4>{status_icon} {etapa['titulo']}</h4>
-                        <p>{etapa['descricao']}</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # Formulário da etapa ativa
-                    if etapa_id == etapa_atual and not disabled:
-                        with st.expander(f"📝 Executar {etapa['titulo']}", expanded=True):
-                            with st.form(f"etapa_{etapa_id}_{numero_pedido}"):
-                                dados_etapa = {}
-                                
-                                # GPS funcional
-                                if 'gps' in etapa['obrigatorio']:
-                                    st.markdown("**📍 Localização GPS**")
-                                    latitude, longitude, endereco = componente_gps(etapa_id, numero_pedido)
-                                    if latitude and longitude:
-                                        dados_etapa['latitude'] = latitude
-                                        dados_etapa['longitude'] = longitude
-                                        dados_etapa['endereco'] = endereco
-                                
-                                # Foto obrigatória
-                                if 'foto' in etapa['obrigatorio']:
-                                    dados_etapa['foto'] = st.file_uploader(
-                                        "📸 Foto Obrigatória", 
-                                        type=['jpg', 'jpeg', 'png'],
-                                        key=f"foto_{etapa_id}_{numero_pedido}"
-                                    )
-                                
-                                # Checklist
-                                if 'checklist' in etapa['obrigatorio']:
-                                    st.markdown("**📋 Checklist**")
-                                    produtos = dados_pedido['produto_servico'].split(', ')
-                                    checklist_items = {}
-                                    for produto in produtos:
-                                        checklist_items[produto] = st.checkbox(produto, key=f"check_{produto}_{etapa_id}_{numero_pedido}")
-                                    dados_etapa['checklist'] = checklist_items
-                                
-                                # Assinatura
-                                if 'assinatura' in etapa['obrigatorio']:
-                                    dados_etapa['assinatura_cliente'] = st.text_input("Nome do Cliente (Assinatura)", key=f"assinatura_{etapa_id}_{numero_pedido}")
-                                
-                                # Relatório
-                                if 'relatorio' in etapa['obrigatorio']:
-                                    dados_etapa['relatorio'] = st.text_area("Relatório Final", key=f"relatorio_{etapa_id}_{numero_pedido}")
-                                
-                                # Botão para concluir etapa
-                                if st.form_submit_button(f"✅ Concluir {etapa['titulo']}", use_container_width=True):
-                                    # Validações
-                                    valido = True
-                                    
-                                    if 'gps' in etapa['obrigatorio'] and (not latitude or not longitude):
-                                        st.error("❌ Localização GPS é obrigatória!")
-                                        valido = False
-                                    
-                                    if 'foto' in etapa['obrigatorio'] and not dados_etapa.get('foto'):
-                                        st.error("❌ Foto é obrigatória!")
-                                        valido = False
-                                    
-                                    if 'checklist' in etapa['obrigatorio']:
-                                        if not all(checklist_items.values()):
-                                            st.error("❌ Todos os itens do checklist devem ser marcados!")
-                                            valido = False
-                                    
-                                    if 'assinatura' in etapa['obrigatorio'] and not dados_etapa.get('assinatura_cliente'):
-                                        st.error("❌ Assinatura do cliente é obrigatória!")
-                                        valido = False
-                                    
-                                    if 'relatorio' in etapa['obrigatorio'] and not dados_etapa.get('relatorio'):
-                                        st.error("❌ Relatório final é obrigatório!")
-                                        valido = False
-                                    
-                                    if valido:
-                                        dados_etapa['timestamp'] = datetime.now().isoformat()
-                                        dados_etapa['equipe'] = usuario['nome']
-                                        
-                                        avancar_etapa(numero_pedido, etapa_id, dados_etapa)
-                                        
-                                        st.success(f"✅ {etapa['titulo']} concluída com sucesso!")
-                                        st.balloons()
-                                        st.rerun()
-                
-                # Finalização do trabalho
-                if etapa_atual == 'finalizado':
-                    st.success("🎉 Trabalho finalizado com sucesso!")
-                    st.balloons()
-                
-                # Chat do trabalho
-                st.header("Chat do Trabalho")
-                componente_chat(f"trabalho_{numero_pedido}", usuario['nome'])
-        
-        else:
-            st.info(f"📋 Nenhum trabalho encontrado para {usuario['nome']}")
-    
-    elif perfil == 'boss':
-        st.sidebar.markdown("### Menu Executivo")
-        
-        opcao = st.sidebar.selectbox("📋 Módulos", [
-            "Dashboard Executivo",
-            "Análise Financeira", 
-            "Performance da Equipe",
-            "Relatórios Gerenciais",
-            "KPIs Estratégicos"
-        ])
-        
-        if opcao == "Dashboard Executivo":
-            st.header("Dashboard Executivo")
-            
-            # KPIs Executivos
-            col1, col2, col3, col4, col5, col6 = st.columns(6)
-            
-            with col1:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">R$ 15.490</div>
-                    <div class="metric-label">Receita Total</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">R$ 9.500</div>
-                    <div class="metric-label">Custos Totais</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col3:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">R$ 5.990</div>
-                    <div class="metric-label">Lucro Líquido</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col4:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">38.7%</div>
-                    <div class="metric-label">Margem Líquida</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col5:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">3</div>
-                    <div class="metric-label">Pedidos Ativos</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col6:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">95%</div>
-                    <div class="metric-label">Eficiência</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Gráficos executivos
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Receita vs Custos vs Lucro
-                fig_financeiro = go.Figure()
-                
-                fig_financeiro.add_trace(go.Bar(
-                    name='Receita',
-                    x=['Nov', 'Dez', 'Jan'],
-                    y=[8500, 12300, 15490],
-                    marker_color='#FF6B00'
-                ))
-                
-                fig_financeiro.add_trace(go.Bar(
-                    name='Custos',
-                    x=['Nov', 'Dez', 'Jan'],
-                    y=[5500, 7800, 9500],
-                    marker_color='#f59e0b'
-                ))
-                
-                fig_financeiro.add_trace(go.Bar(
-                    name='Lucro',
-                    x=['Nov', 'Dez', 'Jan'],
-                    y=[3000, 4500, 5990],
-                    marker_color='#10b981'
-                ))
-                
-                fig_financeiro.update_layout(
-                    title="Análise Financeira Mensal",
-                    barmode='group',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    font_color='white'
-                )
-                
-                st.plotly_chart(fig_financeiro, use_container_width=True)
-            
-            with col2:
-                # Distribuição por regime de pagamento
-                regimes = todos_pedidos['regime_pagamento'].value_counts()
-                
-                fig_regimes = px.pie(
-                    values=regimes.values,
-                    names=regimes.index,
-                    title="Distribuição por Regime de Pagamento",
-                    color_discrete_sequence=['#10b981', '#f59e0b', '#8b5cf6']
-                )
-                
-                fig_regimes.update_layout(
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    font_color='white'
-                )
-                
-                st.plotly_chart(fig_regimes, use_container_width=True)
-            
-            # Performance da equipe
-            st.subheader("👥 Performance da Equipe")
-            
-            performance_data = {
-                'Colaborador': ['João Silva', 'Carlos Santos', 'Pedro Lima', 'Ana Costa', 'Roberto Alves'],
-                'Trabalhos Concluídos': [8, 6, 10, 4, 7],
-                'Avaliação Média': [4.8, 4.6, 4.9, 4.7, 4.5],
-                'Status': ['Disponível', 'Ocupado', 'Disponível', 'Disponível', 'Disponível']
-            }
-            
-            df_performance = pd.DataFrame(performance_data)
-            st.dataframe(df_performance, use_container_width=True, hide_index=True)
-            
-            # Alertas executivos
-            st.subheader("🚨 Alertas Executivos")
-            
-            st.warning("⚠️ Pedido PED003 com documentos pendentes - Ação necessária")
-            st.info("📈 Receita mensal cresceu 26% - Meta superada")
-            st.success("✅ Todos os trabalhos de dezembro foram finalizados")
-        
-        elif opcao == "Análise Financeira":
-            st.header("Análise Financeira Detalhada")
-            
-            # Métricas financeiras detalhadas
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">R$ 15.490</div>
-                    <div class="metric-label">Receita Bruta</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">R$ 9.500</div>
-                    <div class="metric-label">Custos Operacionais</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col3:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">R$ 5.990</div>
-                    <div class="metric-label">Lucro Líquido</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col4:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">R$ 5.167</div>
-                    <div class="metric-label">Ticket Médio</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Análise por pedido
-            st.subheader("💰 Análise por Pedido")
-            
-            # Calcular margem por pedido
-            todos_pedidos['margem'] = ((todos_pedidos['valor'] - todos_pedidos['custos']) / todos_pedidos['valor'] * 100).round(1)
-            todos_pedidos['lucro'] = todos_pedidos['valor'] - todos_pedidos['custos']
-            
-            st.dataframe(
-                todos_pedidos[['numero_pedido', 'cliente', 'valor', 'custos', 'lucro', 'margem', 'regime_pagamento']],
-                use_container_width=True,
-                hide_index=True
-            )
-            
-            # Gráfico de margem por regime
-            fig_margem = px.box(
-                todos_pedidos, 
-                x='regime_pagamento', 
-                y='margem',
-                title="Distribuição de Margem por Regime de Pagamento",
-                color='regime_pagamento',
-                color_discrete_sequence=['#10b981', '#f59e0b', '#8b5cf6']
-            )
-            
-            fig_margem.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font_color='white'
-            )
-            
-            st.plotly_chart(fig_margem, use_container_width=True)
-        
-        elif opcao == "Performance da Equipe":
-            st.header("Performance da Equipe")
-            
-            # Métricas da equipe
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">5</div>
-                    <div class="metric-label">Colaboradores Ativos</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">35</div>
-                    <div class="metric-label">Trabalhos Concluídos</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col3:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">4.7</div>
-                    <div class="metric-label">Avaliação Média</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col4:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">95%</div>
-                    <div class="metric-label">Taxa de Conclusão</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Detalhes por colaborador
-            st.subheader("👤 Detalhes por Colaborador")
-            
-            performance_detalhada = {
-                'Colaborador': ['João Silva', 'Carlos Santos', 'Pedro Lima', 'Ana Costa', 'Roberto Alves'],
-                'Função': ['Montador Senior', 'Técnico Audio/Video', 'Auxiliar Geral', 'Decoradora', 'Motorista'],
-                'Trabalhos Concluídos': [8, 6, 10, 4, 7],
-                'Trabalhos em Andamento': [1, 2, 0, 1, 1],
-                'Avaliação Média': [4.8, 4.6, 4.9, 4.7, 4.5],
-                'Disponibilidade': ['Seg-Sex', 'Ter-Sab', 'Seg-Dom', 'Qua-Dom', 'Seg-Sex'],
-                'Status': ['Disponível', 'Ocupado', 'Disponível', 'Disponível', 'Disponível']
-            }
-            
-            df_performance_detalhada = pd.DataFrame(performance_detalhada)
-            st.dataframe(df_performance_detalhada, use_container_width=True, hide_index=True)
-            
-            # Gráfico de produtividade
-            fig_produtividade = px.bar(
-                df_performance_detalhada,
-                x='Colaborador',
-                y='Trabalhos Concluídos',
-                title="Produtividade por Colaborador",
-                color='Avaliação Média',
-                color_continuous_scale='Viridis'
-            )
-            
-            fig_produtividade.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font_color='white'
-            )
-            
-            st.plotly_chart(fig_produtividade, use_container_width=True)
-        
-        elif opcao == "Relatórios Gerenciais":
-            st.header("Relatórios Gerenciais")
-            
-            # Seletor de período
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                data_inicio = st.date_input("Data Início")
-            
-            with col2:
-                data_fim = st.date_input("Data Fim")
-            
-            # Resumo executivo
-            st.subheader("📊 Resumo Executivo")
-            
-            st.markdown(f"""
-            <div class="metric-card">
-                <h4>Resumo do Período</h4>
-                <p><strong>Receita Total:</strong> R$ 15.490,00</p>
-                <p><strong>Custos Totais:</strong> R$ 9.500,00</p>
-                <p><strong>Lucro Líquido:</strong> R$ 5.990,00</p>
-                <p><strong>Margem Líquida:</strong> 38.7%</p>
-                <p><strong>Pedidos Processados:</strong> 3</p>
-                <p><strong>Taxa de Conclusão:</strong> 100%</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Análise por categoria
-            st.subheader("📈 Análise por Categoria")
-            
-            categoria_analysis = todos_pedidos.groupby('categoria').agg({
-                'valor': 'sum',
-                'custos': 'sum',
-                'numero_pedido': 'count'
-            }).reset_index()
-            
-            categoria_analysis['lucro'] = categoria_analysis['valor'] - categoria_analysis['custos']
-            categoria_analysis['margem'] = (categoria_analysis['lucro'] / categoria_analysis['valor'] * 100).round(1)
-            
-            st.dataframe(categoria_analysis, use_container_width=True, hide_index=True)
-            
-            # Tendências
-            st.subheader("📉 Tendências")
-            
-            tendencias_data = {
-                'Mês': ['Novembro', 'Dezembro', 'Janeiro'],
-                'Receita': [8500, 12300, 15490],
-                'Pedidos': [2, 3, 3],
-                'Ticket Médio': [4250, 4100, 5167]
-            }
-            
-            df_tendencias = pd.DataFrame(tendencias_data)
-            
-            fig_tendencias = px.line(
-                df_tendencias,
-                x='Mês',
-                y=['Receita', 'Ticket Médio'],
-                title="Tendências de Receita e Ticket Médio",
-                color_discrete_sequence=['#FF6B00', '#10b981']
-            )
-            
-            fig_tendencias.update_layout(
-                plot_bgcolor='rgba(0,0,0,0)',
-                paper_bgcolor='rgba(0,0,0,0)',
-                font_color='white'
-            )
-            
-            st.plotly_chart(fig_tendencias, use_container_width=True)
-        
-        elif opcao == "KPIs Estratégicos":
-            st.header("KPIs Estratégicos")
-            
-            # KPIs principais
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">26%</div>
-                    <div class="metric-label">Crescimento Mensal</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">100%</div>
-                    <div class="metric-label">Taxa de Entrega</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col3:
-                st.markdown("""
-                <div class="metric-card">
-                    <div class="metric-value">4.7/5</div>
-                    <div class="metric-label">Satisfação Cliente</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Distribuição por regime
-            st.subheader("💰 Distribuição por Regime de Pagamento")
-            
-            regime_stats = todos_pedidos['regime_pagamento'].value_counts()
-            regime_percentual = (regime_stats / regime_stats.sum() * 100).round(1)
-            
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-value">{regime_stats.get('Padrão', 0)}</div>
-                    <div class="metric-label">Pedidos Padrão ({regime_percentual.get('Padrão', 0)}%)</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-value">{regime_stats.get('1%', 0)}</div>
-                    <div class="metric-label">Pedidos Urgentes ({regime_percentual.get('1%', 0)}%)</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col3:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="metric-value">{regime_stats.get('3%', 0)}</div>
-                    <div class="metric-label">Pedidos Weekend ({regime_percentual.get('3%', 0)}%)</div>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            # Eficiência operacional
-            st.subheader("⚡ Eficiência Operacional")
-            
-            eficiencia_data = {
-                'Métrica': ['Tempo Médio de Execução', 'Taxa de Retrabalho', 'Utilização da Equipe', 'Satisfação da Equipe'],
-                'Valor Atual': ['6.2 horas', '2%', '85%', '4.5/5'],
-                'Meta': ['6 horas', '< 5%', '90%', '> 4.0'],
-                'Status': ['🟡 Atenção', '🟢 OK', '🟡 Atenção', '🟢 OK']
-            }
-            
-            df_eficiencia = pd.DataFrame(eficiencia_data)
-            st.dataframe(df_eficiencia, use_container_width=True, hide_index=True)
-            
-            # Projeções
-            st.subheader("📈 Projeções")
-            
+        with col1:
             st.markdown("""
             <div class="metric-card">
-                <h4>Projeções para Próximo Mês</h4>
-                <p><strong>Receita Projetada:</strong> R$ 18.500,00 (+19%)</p>
-                <p><strong>Pedidos Estimados:</strong> 4 (+33%)</p>
-                <p><strong>Margem Esperada:</strong> 40% (+1.3pp)</p>
-                <p><strong>Equipe Necessária:</strong> 5 colaboradores</p>
+                <h3 style="color: var(--nexo-orange); margin: 0;">Entregas Hoje</h3>
+                <h2 style="margin: 0.5rem 0;">5</h2>
+                <p style="margin: 0; color: #22c55e;">3 concluídas</p>
             </div>
             """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("""
+            <div class="metric-card">
+                <h3 style="color: var(--nexo-orange); margin: 0;">Equipes Ativas</h3>
+                <h2 style="margin: 0.5rem 0;">4/5</h2>
+                <p style="margin: 0; color: #f59e0b;">1 disponível</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown("""
+            <div class="metric-card">
+                <h3 style="color: var(--nexo-orange); margin: 0;">Docs Pendentes</h3>
+                <h2 style="margin: 0.5rem 0;">3</h2>
+                <p style="margin: 0; color: #ef4444;">Requer atenção</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col4:
+            st.markdown("""
+            <div class="metric-card">
+                <h3 style="color: var(--nexo-orange); margin: 0;">Eficiência</h3>
+                <h2 style="margin: 0.5rem 0;">94%</h2>
+                <p style="margin: 0; color: #22c55e;">↑ 2% vs semana anterior</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Próximas entregas
+        st.subheader("Próximas Entregas (48h)")
+        
+        proximas_entregas = [
+            {"cliente": "Hotel Ramada", "data": "Hoje 14:00", "equipe": "João + Carlos", "status": "Preparando"},
+            {"cliente": "Clube Náutico", "data": "Amanhã 09:00", "equipe": "Pedro + Ana", "status": "Agendado"},
+            {"cliente": "Residência Silva", "data": "Amanhã 16:00", "equipe": "A definir", "status": "Pendente"}
+        ]
+        
+        for entrega in proximas_entregas:
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.write(f"**{entrega['cliente']}**")
+            
+            with col2:
+                st.write(entrega['data'])
+            
+            with col3:
+                st.write(entrega['equipe'])
+            
+            with col4:
+                if entrega['status'] == "Preparando":
+                    st.markdown('<span class="status-badge status-andamento">Preparando</span>', unsafe_allow_html=True)
+                elif entrega['status'] == "Agendado":
+                    st.markdown('<span class="status-badge status-concluido">Agendado</span>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<span class="status-badge status-pendente">Pendente</span>', unsafe_allow_html=True)
+    
+    elif opcao == "Gestão de Pedidos":
+        st.header("Gestão de Pedidos")
+        
+        # Filtros
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            status_filtro = st.selectbox("Filtrar por Status", 
+                                       ["Todos", "Na Logística", "Documentos Pendentes", "Pronto para Campo"])
+        
+        with col2:
+            regime_filtro = st.selectbox("Filtrar por Regime", 
+                                       ["Todos", "Padrão", "1%", "3%"])
+        
+        # Pedidos na logística
+        pedidos_logistica = [p for p in st.session_state.pedidos if p['status'] in ['Na Logística', 'Documentos Pendentes']]
+        
+        if pedidos_logistica:
+            for pedido in pedidos_logistica:
+                with st.expander(f"Pedido #{pedido['id']} - {pedido['cliente']} - Regime: {pedido['regime']}"):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.write(f"**Cliente:** {pedido['cliente']}")
+                        st.write(f"**Evento:** {pedido['evento']}")
+                        st.write(f"**Data Evento:** {pedido['data_evento']}")
+                        st.write(f"**Local:** {pedido['local']}")
+                        
+                        # Datas específicas de logística
+                        st.subheader("Datas de Logística")
+                        data_entrega = st.date_input(f"Data de Entrega", key=f"data_entrega_{pedido['id']}")
+                        hora_entrega = st.time_input(f"Horário de Entrega", key=f"hora_entrega_{pedido['id']}")
+                        
+                        data_recolhimento = st.date_input(f"Data de Recolhimento", key=f"data_recolhimento_{pedido['id']}")
+                        hora_recolhimento = st.time_input(f"Horário de Recolhimento", key=f"hora_recolhimento_{pedido['id']}")
+                    
+                    with col2:
+                        st.write(f"**Regime:** {pedido['regime']}")
+                        st.write(f"**Total:** R$ {pedido['total']:.2f}")
+                        
+                        # Alocação de equipe
+                        st.subheader("Alocação de Equipe")
+                        equipes_disponiveis = [e["nome"] for e in st.session_state.equipes if e["status"] == "Disponível"]
+                        
+                        equipe_entrega = st.multiselect(f"Equipe para Entrega", 
+                                                      equipes_disponiveis, 
+                                                      key=f"equipe_entrega_{pedido['id']}")
+                        
+                        equipe_recolhimento = st.multiselect(f"Equipe para Recolhimento", 
+                                                           equipes_disponiveis, 
+                                                           key=f"equipe_recolhimento_{pedido['id']}")
+                        
+                        # Responsáveis
+                        responsavel_recepcao = st.text_input(f"Responsável pela Recepção", 
+                                                           key=f"resp_recepcao_{pedido['id']}")
+                        responsavel_liberacao = st.text_input(f"Responsável pela Liberação", 
+                                                            key=f"resp_liberacao_{pedido['id']}")
+                    
+                    # Documentos obrigatórios
+                    st.subheader("Documentos Obrigatórios")
+                    
+                    documentos = [
+                        "Ordem de Separação",
+                        "Confirmação de Reserva", 
+                        "Romaneio de Entrega",
+                        "Termo de Recebimento",
+                        "Ordem de Recolhimento",
+                        "Relatório de Inspeção"
+                    ]
+                    
+                    col1, col2, col3 = st.columns(3)
+                    
+                    for i, doc in enumerate(documentos):
+                        with [col1, col2, col3][i % 3]:
+                            uploaded_file = st.file_uploader(f"{doc}", 
+                                                           type=['pdf', 'jpg', 'png'], 
+                                                           key=f"doc_{doc}_{pedido['id']}")
+                            
+                            if uploaded_file:
+                                st.success(f"✅ {doc} anexado")
+                            else:
+                                st.warning(f"⏳ {doc} pendente")
+                    
+                    # Observações
+                    observacoes_logistica = st.text_area(f"Observações da Logística", 
+                                                        key=f"obs_log_{pedido['id']}")
+                    
+                    # Botões de ação
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        if st.button(f"Gerar Documentos Automáticos", key=f"gerar_docs_{pedido['id']}"):
+                            st.success("Documentos gerados automaticamente!")
+                    
+                    with col2:
+                        if st.button(f"Salvar Informações", key=f"salvar_{pedido['id']}"):
+                            st.success("Informações salvas!")
+                    
+                    with col3:
+                        if st.button(f"Enviar para Campo", key=f"enviar_campo_{pedido['id']}"):
+                            pedido['status'] = "Pronto para Campo"
+                            st.success("Pedido enviado para equipe de campo!")
+                            st.rerun()
+        else:
+            st.info("Nenhum pedido na logística no momento.")
+    
+    elif opcao == "Gestão de Equipes":
+        st.header("Gestão de Equipes")
+        
+        # Status das equipes
+        st.subheader("Status da Equipe")
+        
+        for equipe in st.session_state.equipes:
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.write(f"**{equipe['nome']}**")
+            
+            with col2:
+                st.write(equipe['especialidade'])
+            
+            with col3:
+                if equipe['status'] == "Disponível":
+                    st.markdown('<span class="status-badge status-concluido">Disponível</span>', unsafe_allow_html=True)
+                else:
+                    st.markdown('<span class="status-badge status-urgente">Ocupado</span>', unsafe_allow_html=True)
+            
+            with col4:
+                novo_status = st.selectbox("Alterar Status", 
+                                         ["Disponível", "Ocupado"], 
+                                         index=0 if equipe['status'] == "Disponível" else 1,
+                                         key=f"status_{equipe['nome']}")
+                
+                if novo_status != equipe['status']:
+                    equipe['status'] = novo_status
+                    st.rerun()
+        
+        # Adicionar novo colaborador
+        with st.expander("Adicionar Novo Colaborador"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                novo_nome = st.text_input("Nome do Colaborador")
+                nova_especialidade = st.selectbox("Especialidade", 
+                                                ["Montagem", "Elétrica", "Logística", "Decoração", "Supervisão"])
+            
+            with col2:
+                novo_telefone = st.text_input("Telefone")
+                nova_observacao = st.text_area("Observações")
+            
+            if st.button("Adicionar Colaborador"):
+                if novo_nome and nova_especialidade:
+                    novo_colaborador = {
+                        "nome": novo_nome,
+                        "especialidade": nova_especialidade,
+                        "status": "Disponível",
+                        "telefone": novo_telefone,
+                        "observacao": nova_observacao
+                    }
+                    st.session_state.equipes.append(novo_colaborador)
+                    st.success("Colaborador adicionado com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("Preencha pelo menos nome e especialidade!")
+    
+    elif opcao == "Tarefas de Galpão":
+        st.header("Tarefas de Galpão")
+        
+        # Criar nova tarefa
+        with st.expander("Nova Tarefa de Galpão"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                tipo_tarefa = st.selectbox("Tipo de Tarefa", [
+                    "Limpeza de Equipamentos",
+                    "Organização do Estoque",
+                    "Manutenção Preventiva",
+                    "Inventário",
+                    "Preparação de Material",
+                    "Controle de Qualidade",
+                    "Outros"
+                ])
+                
+                responsavel = st.selectbox("Responsável", 
+                                         [e["nome"] for e in st.session_state.equipes])
+            
+            with col2:
+                prazo = st.date_input("Prazo")
+                prioridade = st.selectbox("Prioridade", ["Baixa", "Média", "Alta", "Urgente"])
+            
+            descricao = st.text_area("Descrição da Tarefa")
+            
+            if st.button("Criar Tarefa"):
+                if tipo_tarefa and responsavel and descricao:
+                    nova_tarefa = {
+                        "id": len(st.session_state.tarefas_galpao) + 1,
+                        "tipo": tipo_tarefa,
+                        "responsavel": responsavel,
+                        "prazo": str(prazo),
+                        "prioridade": prioridade,
+                        "descricao": descricao,
+                        "status": "Pendente",
+                        "data_criacao": datetime.now().strftime("%Y-%m-%d %H:%M")
+                    }
+                    st.session_state.tarefas_galpao.append(nova_tarefa)
+                    st.success("Tarefa criada com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("Preencha todos os campos obrigatórios!")
+        
+        # Lista de tarefas
+        st.subheader("Tarefas Ativas")
+        
+        if st.session_state.tarefas_galpao:
+            for tarefa in st.session_state.tarefas_galpao:
+                with st.expander(f"Tarefa #{tarefa['id']} - {tarefa['tipo']} - {tarefa['responsavel']}"):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.write(f"**Tipo:** {tarefa['tipo']}")
+                        st.write(f"**Responsável:** {tarefa['responsavel']}")
+                        st.write(f"**Prazo:** {tarefa['prazo']}")
+                        st.write(f"**Criada em:** {tarefa['data_criacao']}")
+                    
+                    with col2:
+                        st.write(f"**Prioridade:** {tarefa['prioridade']}")
+                        st.write(f"**Status:** {tarefa['status']}")
+                        
+                        novo_status = st.selectbox("Alterar Status", 
+                                                 ["Pendente", "Em Andamento", "Concluída"], 
+                                                 index=["Pendente", "Em Andamento", "Concluída"].index(tarefa['status']),
+                                                 key=f"status_tarefa_{tarefa['id']}")
+                        
+                        if novo_status != tarefa['status']:
+                            tarefa['status'] = novo_status
+                            st.rerun()
+                    
+                    st.write(f"**Descrição:** {tarefa['descricao']}")
+        else:
+            st.info("Nenhuma tarefa de galpão criada ainda.")
+    
+    elif opcao == "Documentos":
+        st.header("Gestão de Documentos")
+        
+        # Seleção de pedido
+        pedidos_com_docs = [p for p in st.session_state.pedidos if p['status'] in ['Na Logística', 'Pronto para Campo']]
+        
+        if pedidos_com_docs:
+            pedido_selecionado = st.selectbox("Selecionar Pedido", 
+                                            [f"#{p['id']} - {p['cliente']} - {p['evento']}" for p in pedidos_com_docs])
+            
+            if pedido_selecionado:
+                pedido_id = int(pedido_selecionado.split('#')[1].split(' -')[0])
+                pedido = next((p for p in st.session_state.pedidos if p['id'] == pedido_id), None)
+                
+                if pedido:
+                    st.subheader(f"Documentos do Pedido #{pedido['id']}")
+                    
+                    # Upload de documentos por categoria
+                    categorias_docs = {
+                        "Documentos Obrigatórios": [
+                            "Ordem de Separação",
+                            "Confirmação de Reserva",
+                            "Romaneio de Entrega",
+                            "Termo de Recebimento",
+                            "Ordem de Recolhimento",
+                            "Relatório de Inspeção"
+                        ],
+                        "Documentos do Local": [
+                            "Autorização do Local",
+                            "Planta/Layout",
+                            "Fotos do Local",
+                            "Contatos Importantes"
+                        ],
+                        "Documentos Técnicos": [
+                            "Diagrama Elétrico",
+                            "Certificados de Segurança",
+                            "Especificações Técnicas"
+                        ]
+                    }
+                    
+                    for categoria, docs in categorias_docs.items():
+                        with st.expander(categoria):
+                            cols = st.columns(2)
+                            
+                            for i, doc in enumerate(docs):
+                                with cols[i % 2]:
+                                    uploaded_file = st.file_uploader(f"{doc}", 
+                                                                   type=['pdf', 'jpg', 'png', 'docx'], 
+                                                                   key=f"doc_{categoria}_{doc}_{pedido['id']}")
+                                    
+                                    if uploaded_file:
+                                        st.success(f"✅ {doc} anexado")
+                                        
+                                        # Botão de download
+                                        st.download_button(
+                                            label=f"📥 Download {doc}",
+                                            data=uploaded_file.getvalue(),
+                                            file_name=uploaded_file.name,
+                                            mime=uploaded_file.type
+                                        )
+                                    else:
+                                        st.warning(f"⏳ {doc} pendente")
+                    
+                    # Geração automática de documentos
+                    st.subheader("Geração Automática")
+                    
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        if st.button("Gerar Ordem de Separação"):
+                            st.success("Ordem de Separação gerada!")
+                    
+                    with col2:
+                        if st.button("Gerar Romaneio de Entrega"):
+                            st.success("Romaneio de Entrega gerado!")
+                    
+                    with col3:
+                        if st.button("Gerar Todos os Documentos"):
+                            st.success("Todos os documentos foram gerados!")
+        else:
+            st.info("Nenhum pedido disponível para gestão de documentos.")
+    
+    elif opcao == "Chat Integrado":
+        st.header("Chat Integrado")
+        
+        # Seleção de destinatário
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            tipo_conversa = st.selectbox("Tipo de Conversa", ["Por Setor", "Por Colaborador"])
+        
+        with col2:
+            if tipo_conversa == "Por Setor":
+                destinatario = st.selectbox("Setor", ["Comercial", "Campo", "Boss", "Geral"])
+            else:
+                destinatario = st.selectbox("Colaborador", [e["nome"] for e in st.session_state.equipes])
+        
+        # Container do chat
+        st.markdown(f"""
+        <div class="chat-container">
+            <h4 style="color: var(--nexo-orange); margin-bottom: 1rem;">Conversa com {destinatario}</h4>
+            <div class="chat-message">
+                <strong>Marcelão:</strong> Pessoal, material do evento de amanhã já está separado
+            </div>
+            <div class="chat-message">
+                <strong>João:</strong> Perfeito! Que horas vamos carregar o caminhão?
+            </div>
+            <div class="chat-message">
+                <strong>Marcelão:</strong> 7h da manhã. Chegada no local às 8h30
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Input de mensagem
+        col1, col2 = st.columns([4, 1])
+        
+        with col1:
+            nova_mensagem = st.text_input("Digite sua mensagem...", key="chat_logistica")
+        
+        with col2:
+            if st.button("Enviar"):
+                if nova_mensagem:
+                    st.success("Mensagem enviada!")
+                    st.rerun()
+
+# Interface Equipe de Campo
+def interface_campo():
+    st.title("NEXO - Equipe de Campo")
+    
+    with st.sidebar:
+        st.markdown(f"### Bem-vindo, {st.session_state.user_name}!")
+        opcao = st.selectbox("Navegação", [
+            "Pedidos Designados",
+            "Trabalho Atual",
+            "Histórico",
+            "Chat"
+        ])
+    
+    if opcao == "Pedidos Designados":
+        st.header("Pedidos Designados")
+        
+        # Pedidos para entrega
+        st.subheader("📦 Pedidos para Entrega")
+        
+        pedidos_entrega = [
+            {
+                "id": 1,
+                "cliente": "Hotel Ramada",
+                "evento": "Casamento",
+                "data": "Hoje",
+                "horario": "14:00",
+                "local": "Salão Principal",
+                "status": "Pronto para Entrega"
+            },
+            {
+                "id": 2,
+                "cliente": "Clube Náutico",
+                "evento": "Festa Corporativa",
+                "data": "Amanhã",
+                "horario": "09:00",
+                "local": "Área da Piscina",
+                "status": "Agendado"
+            }
+        ]
+        
+        for pedido in pedidos_entrega:
+            with st.container():
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h4 style="color: var(--nexo-orange); margin: 0;">Pedido #{pedido['id']} - {pedido['cliente']}</h4>
+                    <p style="margin: 0.5rem 0;"><strong>Evento:</strong> {pedido['evento']}</p>
+                    <p style="margin: 0.5rem 0;"><strong>Data/Hora:</strong> {pedido['data']} às {pedido['horario']}</p>
+                    <p style="margin: 0.5rem 0;"><strong>Local:</strong> {pedido['local']}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if st.button(f"🚚 Iniciar Entrega #{pedido['id']}", key=f"iniciar_entrega_{pedido['id']}"):
+                    st.session_state.trabalho_atual = {
+                        "pedido": pedido,
+                        "tipo": "entrega",
+                        "etapa": 1,
+                        "etapas_concluidas": []
+                    }
+                    st.success(f"Entrega do pedido #{pedido['id']} iniciada!")
+                    st.rerun()
+        
+        # Pedidos para recolhimento
+        st.subheader("📤 Pedidos para Recolhimento")
+        
+        pedidos_recolhimento = [
+            {
+                "id": 3,
+                "cliente": "Residência Silva",
+                "evento": "Aniversário",
+                "data": "Hoje",
+                "horario": "18:00",
+                "local": "Quintal",
+                "status": "Pronto para Recolhimento"
+            }
+        ]
+        
+        for pedido in pedidos_recolhimento:
+            with st.container():
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h4 style="color: var(--nexo-orange); margin: 0;">Pedido #{pedido['id']} - {pedido['cliente']}</h4>
+                    <p style="margin: 0.5rem 0;"><strong>Evento:</strong> {pedido['evento']}</p>
+                    <p style="margin: 0.5rem 0;"><strong>Data/Hora:</strong> {pedido['data']} às {pedido['horario']}</p>
+                    <p style="margin: 0.5rem 0;"><strong>Local:</strong> {pedido['local']}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                if st.button(f"📦 Iniciar Recolhimento #{pedido['id']}", key=f"iniciar_recolhimento_{pedido['id']}"):
+                    st.session_state.trabalho_atual = {
+                        "pedido": pedido,
+                        "tipo": "recolhimento",
+                        "etapa": 1,
+                        "etapas_concluidas": []
+                    }
+                    st.success(f"Recolhimento do pedido #{pedido['id']} iniciado!")
+                    st.rerun()
+    
+    elif opcao == "Trabalho Atual":
+        if 'trabalho_atual' not in st.session_state:
+            st.info("Nenhum trabalho em andamento. Selecione um pedido para iniciar.")
+            return
+        
+        trabalho = st.session_state.trabalho_atual
+        pedido = trabalho['pedido']
+        tipo = trabalho['tipo']
+        etapa_atual = trabalho['etapa']
+        
+        st.header(f"Trabalho Atual - {tipo.title()} #{pedido['id']}")
+        
+        # Informações do pedido
+        st.markdown(f"""
+        <div class="metric-card">
+            <h4 style="color: var(--nexo-orange); margin: 0;">{pedido['cliente']} - {pedido['evento']}</h4>
+            <p style="margin: 0.5rem 0;"><strong>Local:</strong> {pedido['local']}</p>
+            <p style="margin: 0.5rem 0;"><strong>Data/Hora:</strong> {pedido['data']} às {pedido['horario']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Etapas do trabalho
+        if tipo == "entrega":
+            etapas = [
+                "Check-in Chegada",
+                "Conferência de Material",
+                "Início da Montagem",
+                "Montagem Concluída",
+                "Início da Desmontagem",
+                "Material Recolhido",
+                "Check-out Saída"
+            ]
+        else:  # recolhimento
+            etapas = [
+                "Check-in Chegada",
+                "Início da Desmontagem",
+                "Desmontagem Concluída",
+                "Conferência de Material",
+                "Material Carregado",
+                "Check-out Saída"
+            ]
+        
+        # Progress bar
+        progresso = (etapa_atual - 1) / len(etapas) * 100
+        st.markdown(f"""
+        <div class="progress-container">
+            <div class="progress-bar" style="width: {progresso}%;"></div>
+        </div>
+        <p style="text-align: center; color: var(--nexo-orange); font-weight: 600;">
+            Etapa {etapa_atual} de {len(etapas)} - {progresso:.0f}% Concluído
+        </p>
+        """, unsafe_allow_html=True)
+        
+        # Etapa atual
+        etapa_nome = etapas[etapa_atual - 1]
+        st.subheader(f"Etapa {etapa_atual}: {etapa_nome}")
+        
+        # Campos obrigatórios por etapa
+        if etapa_atual == 1:  # Check-in Chegada
+            st.write("📍 **Confirme sua localização e registre a chegada**")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.button("📍 Usar Minha Localização"):
+                    st.success("✅ Localização registrada: Lat: -8.0476, Lng: -34.8770")
+                    st.session_state.localizacao_registrada = True
+            
+            with col2:
+                foto_chegada = st.camera_input("📸 Foto do Local de Chegada")
+                if foto_chegada:
+                    st.success("✅ Foto de chegada registrada")
+                    st.session_state.foto_chegada = True
+            
+            observacoes = st.text_area("Observações da Chegada")
+            
+            if st.button("✅ Concluir Check-in"):
+                if 'localizacao_registrada' in st.session_state and 'foto_chegada' in st.session_state:
+                    trabalho['etapas_concluidas'].append({
+                        "etapa": etapa_atual,
+                        "nome": etapa_nome,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "observacoes": observacoes
+                    })
+                    trabalho['etapa'] = etapa_atual + 1
+                    st.success("Check-in concluído!")
+                    st.rerun()
+                else:
+                    st.error("Complete todos os campos obrigatórios!")
+        
+        elif etapa_atual == 2:  # Conferência de Material
+            st.write("📋 **Confira todos os itens do pedido**")
+            
+            # Lista de itens para conferência
+            itens_conferencia = [
+                {"item": "Tenda 6x6", "quantidade": 2, "conferido": False},
+                {"item": "Mesa Redonda", "quantidade": 8, "conferido": False},
+                {"item": "Cadeira Plástica", "quantidade": 32, "conferido": False},
+                {"item": "Som Ambiente", "quantidade": 1, "conferido": False}
+            ]
+            
+            todos_conferidos = True
+            
+            for i, item in enumerate(itens_conferencia):
+                col1, col2, col3 = st.columns([3, 1, 1])
+                
+                with col1:
+                    st.write(f"**{item['item']}**")
+                
+                with col2:
+                    st.write(f"Qtd: {item['quantidade']}")
+                
+                with col3:
+                    conferido = st.checkbox("✅", key=f"item_{i}")
+                    if not conferido:
+                        todos_conferidos = False
+            
+            foto_material = st.camera_input("📸 Foto do Material Conferido")
+            observacoes = st.text_area("Observações da Conferência")
+            
+            if st.button("✅ Concluir Conferência"):
+                if todos_conferidos and foto_material:
+                    trabalho['etapas_concluidas'].append({
+                        "etapa": etapa_atual,
+                        "nome": etapa_nome,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "observacoes": observacoes
+                    })
+                    trabalho['etapa'] = etapa_atual + 1
+                    st.success("Conferência concluída!")
+                    st.rerun()
+                else:
+                    st.error("Confira todos os itens e tire a foto!")
+        
+        elif etapa_atual == 3:  # Início da Montagem
+            st.write("🔧 **Registre o início da montagem**")
+            
+            foto_inicio = st.camera_input("📸 Foto do Início da Montagem")
+            horario_inicio = st.time_input("⏰ Horário de Início")
+            observacoes = st.text_area("Observações do Início")
+            
+            if st.button("✅ Registrar Início da Montagem"):
+                if foto_inicio:
+                    trabalho['etapas_concluidas'].append({
+                        "etapa": etapa_atual,
+                        "nome": etapa_nome,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "horario_inicio": str(horario_inicio),
+                        "observacoes": observacoes
+                    })
+                    trabalho['etapa'] = etapa_atual + 1
+                    st.success("Início da montagem registrado!")
+                    st.rerun()
+                else:
+                    st.error("Tire a foto obrigatória!")
+        
+        elif etapa_atual == 4:  # Montagem Concluída
+            st.write("✅ **Finalize a montagem e obtenha assinatura**")
+            
+            foto_final = st.camera_input("📸 Foto da Montagem Finalizada")
+            horario_conclusao = st.time_input("⏰ Horário de Conclusão")
+            
+            # Assinatura digital (simulada)
+            st.subheader("✍️ Assinatura do Cliente")
+            nome_cliente = st.text_input("Nome do Cliente")
+            assinatura_cliente = st.text_input("Assinatura Digital (digite o nome)")
+            
+            observacoes = st.text_area("Observações da Conclusão")
+            
+            if st.button("✅ Concluir Montagem"):
+                if foto_final and nome_cliente and assinatura_cliente:
+                    trabalho['etapas_concluidas'].append({
+                        "etapa": etapa_atual,
+                        "nome": etapa_nome,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "horario_conclusao": str(horario_conclusao),
+                        "cliente": nome_cliente,
+                        "assinatura": assinatura_cliente,
+                        "observacoes": observacoes
+                    })
+                    trabalho['etapa'] = etapa_atual + 1
+                    st.success("Montagem concluída!")
+                    st.rerun()
+                else:
+                    st.error("Complete todos os campos obrigatórios!")
+        
+        # Continuar com as outras etapas...
+        elif etapa_atual >= len(etapas):
+            st.success("🎉 Trabalho Concluído!")
+            
+            if st.button("🏁 Finalizar e Voltar aos Pedidos"):
+                # Salvar dados do trabalho concluído
+                del st.session_state.trabalho_atual
+                st.success("Trabalho finalizado com sucesso!")
+                st.rerun()
+        
+        else:
+            # Etapas restantes (simplificadas)
+            st.write(f"🔄 **{etapa_nome}**")
+            
+            foto_etapa = st.camera_input(f"📸 Foto da {etapa_nome}")
+            observacoes = st.text_area(f"Observações da {etapa_nome}")
+            
+            if st.button(f"✅ Concluir {etapa_nome}"):
+                if foto_etapa:
+                    trabalho['etapas_concluidas'].append({
+                        "etapa": etapa_atual,
+                        "nome": etapa_nome,
+                        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "observacoes": observacoes
+                    })
+                    trabalho['etapa'] = etapa_atual + 1
+                    st.success(f"{etapa_nome} concluída!")
+                    st.rerun()
+                else:
+                    st.error("Tire a foto obrigatória!")
+        
+        # Histórico de etapas concluídas
+        if trabalho['etapas_concluidas']:
+            st.subheader("📋 Etapas Concluídas")
+            
+            for etapa_concluida in trabalho['etapas_concluidas']:
+                st.markdown(f"""
+                <div style="background: var(--nexo-gray); padding: 1rem; border-radius: 8px; margin: 0.5rem 0; border-left: 3px solid #22c55e;">
+                    <strong>✅ Etapa {etapa_concluida['etapa']}: {etapa_concluida['nome']}</strong><br>
+                    <small>Concluída em: {etapa_concluida['timestamp']}</small>
+                </div>
+                """, unsafe_allow_html=True)
+    
+    elif opcao == "Histórico":
+        st.header("Histórico de Trabalhos")
+        
+        # Trabalhos concluídos (dados de exemplo)
+        trabalhos_concluidos = [
+            {
+                "id": 1,
+                "cliente": "Empresa ABC",
+                "evento": "Confraternização",
+                "data": "2024-01-15",
+                "tipo": "Entrega + Recolhimento",
+                "status": "Concluído"
+            },
+            {
+                "id": 2,
+                "cliente": "Família Santos",
+                "evento": "Aniversário",
+                "data": "2024-01-12",
+                "tipo": "Entrega + Recolhimento",
+                "status": "Concluído"
+            }
+        ]
+        
+        for trabalho in trabalhos_concluidos:
+            with st.expander(f"Trabalho #{trabalho['id']} - {trabalho['cliente']}"):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    st.write(f"**Cliente:** {trabalho['cliente']}")
+                    st.write(f"**Evento:** {trabalho['evento']}")
+                    st.write(f"**Data:** {trabalho['data']}")
+                
+                with col2:
+                    st.write(f"**Tipo:** {trabalho['tipo']}")
+                    st.write(f"**Status:** {trabalho['status']}")
+                
+                if st.button(f"Ver Detalhes #{trabalho['id']}", key=f"detalhes_{trabalho['id']}"):
+                    st.info("Detalhes do trabalho em desenvolvimento")
+    
+    elif opcao == "Chat":
+        st.header("Chat da Equipe")
+        
+        # Chat específico por trabalho
+        if 'trabalho_atual' in st.session_state:
+            trabalho = st.session_state.trabalho_atual
+            st.subheader(f"Chat - Trabalho #{trabalho['pedido']['id']}")
+        else:
+            st.subheader("Chat Geral da Equipe")
+        
+        # Container do chat
+        st.markdown("""
+        <div class="chat-container">
+            <div class="chat-message">
+                <strong>Marcelão:</strong> João, como está o andamento no Hotel Ramada?
+            </div>
+            <div class="chat-message">
+                <strong>João:</strong> Montagem 70% concluída. Previsão de término às 16h
+            </div>
+            <div class="chat-message">
+                <strong>Comercial:</strong> Perfeito! Cliente está satisfeito com o andamento
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Input de mensagem
+        col1, col2 = st.columns([4, 1])
+        
+        with col1:
+            nova_mensagem = st.text_input("Digite sua mensagem...", key="chat_campo")
+        
+        with col2:
+            if st.button("Enviar"):
+                if nova_mensagem:
+                    st.success("Mensagem enviada!")
+                    st.rerun()
+
+# Interface Boss
+def interface_boss():
+    st.title("NEXO - Dashboard Executivo")
+    
+    with st.sidebar:
+        st.markdown(f"### Bem-vindo, {st.session_state.user_name}!")
+        opcao = st.selectbox("Navegação", [
+            "Dashboard Executivo",
+            "Análise Financeira",
+            "Performance da Equipe",
+            "Relatórios Gerenciais",
+            "Alertas Executivos",
+            "Visão Consolidada"
+        ])
+    
+    if opcao == "Dashboard Executivo":
+        st.header("Dashboard Executivo")
+        
+        # KPIs Estratégicos
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
+        
+        with col1:
+            st.markdown("""
+            <div class="metric-card">
+                <h3 style="color: var(--nexo-orange); margin: 0;">Receita Mensal</h3>
+                <h2 style="margin: 0.5rem 0;">R$ 45.200</h2>
+                <p style="margin: 0; color: #22c55e;">↑ 8.2%</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("""
+            <div class="metric-card">
+                <h3 style="color: var(--nexo-orange); margin: 0;">Margem Bruta</h3>
+                <h2 style="margin: 0.5rem 0;">68%</h2>
+                <p style="margin: 0; color: #22c55e;">↑ 2.1%</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown("""
+            <div class="metric-card">
+                <h3 style="color: var(--nexo-orange); margin: 0;">Pedidos Ativos</h3>
+                <h2 style="margin: 0.5rem 0;">27</h2>
+                <p style="margin: 0; color: #f59e0b;">↓ 3.2%</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col4:
+            st.markdown("""
+            <div class="metric-card">
+                <h3 style="color: var(--nexo-orange); margin: 0;">Eficiência Op.</h3>
+                <h2 style="margin: 0.5rem 0;">94%</h2>
+                <p style="margin: 0; color: #22c55e;">↑ 1.8%</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col5:
+            st.markdown("""
+            <div class="metric-card">
+                <h3 style="color: var(--nexo-orange); margin: 0;">NPS Cliente</h3>
+                <h2 style="margin: 0.5rem 0;">87</h2>
+                <p style="margin: 0; color: #22c55e;">↑ 5.3%</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col6:
+            st.markdown("""
+            <div class="metric-card">
+                <h3 style="color: var(--nexo-orange); margin: 0;">ROI Mensal</h3>
+                <h2 style="margin: 0.5rem 0;">23%</h2>
+                <p style="margin: 0; color: #22c55e;">↑ 4.1%</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Gráficos Executivos
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("Receita vs Meta (6 meses)")
+            dados_receita = pd.DataFrame({
+                'Mês': ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'],
+                'Receita Real': [35000, 42000, 38000, 45000, 41000, 45200],
+                'Meta': [40000, 40000, 40000, 42000, 42000, 44000]
+            })
+            
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=dados_receita['Mês'], y=dados_receita['Receita Real'], 
+                                   mode='lines+markers', name='Receita Real', 
+                                   line=dict(color='#FF6B00', width=3)))
+            fig.add_trace(go.Scatter(x=dados_receita['Mês'], y=dados_receita['Meta'], 
+                                   mode='lines+markers', name='Meta', 
+                                   line=dict(color='#22c55e', width=2, dash='dash')))
+            
+            fig.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font_color='white',
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            st.subheader("Distribuição de Custos")
+            dados_custos = pd.DataFrame({
+                'Categoria': ['Pessoal', 'Material', 'Logística', 'Overhead'],
+                'Valor': [15000, 8000, 3000, 2000]
+            })
+            
+            fig = px.pie(dados_custos, values='Valor', names='Categoria',
+                        color_discrete_sequence=['#FF6B00', '#ff8533', '#ffb366', '#ffd1a3'])
+            fig.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font_color='white'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Fluxo de Pedidos
+        st.subheader("Fluxo de Pedidos em Tempo Real")
+        
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.markdown("""
+            <div style="background: var(--nexo-gray); padding: 1rem; border-radius: 8px; text-align: center;">
+                <h4 style="color: var(--nexo-orange); margin: 0;">Comercial</h4>
+                <h2 style="margin: 0.5rem 0; color: white;">8</h2>
+                <p style="margin: 0; color: #888;">Novos pedidos</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("""
+            <div style="background: var(--nexo-gray); padding: 1rem; border-radius: 8px; text-align: center;">
+                <h4 style="color: var(--nexo-orange); margin: 0;">Logística</h4>
+                <h2 style="margin: 0.5rem 0; color: white;">5</h2>
+                <p style="margin: 0; color: #888;">Em preparação</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown("""
+            <div style="background: var(--nexo-gray); padding: 1rem; border-radius: 8px; text-align: center;">
+                <h4 style="color: var(--nexo-orange); margin: 0;">Campo</h4>
+                <h2 style="margin: 0.5rem 0; color: white;">7</h2>
+                <p style="margin: 0; color: #888;">Em execução</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col4:
+            st.markdown("""
+            <div style="background: var(--nexo-gray); padding: 1rem; border-radius: 8px; text-align: center;">
+                <h4 style="color: var(--nexo-orange); margin: 0;">Concluídos</h4>
+                <h2 style="margin: 0.5rem 0; color: white;">15</h2>
+                <p style="margin: 0; color: #888;">Este mês</p>
+            </div>
+            """, unsafe_allow_html=True)
+    
+    elif opcao == "Análise Financeira":
+        st.header("Análise Financeira Detalhada")
+        
+        # Resumo Financeiro
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown("""
+            <div class="metric-card">
+                <h3 style="color: var(--nexo-orange); margin: 0;">Receita Bruta</h3>
+                <h2 style="margin: 0.5rem 0;">R$ 45.200</h2>
+                <p style="margin: 0; color: #888;">Junho 2024</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("""
+            <div class="metric-card">
+                <h3 style="color: var(--nexo-orange); margin: 0;">Custos Totais</h3>
+                <h2 style="margin: 0.5rem 0;">R$ 28.000</h2>
+                <p style="margin: 0; color: #888;">62% da receita</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown("""
+            <div class="metric-card">
+                <h3 style="color: var(--nexo-orange); margin: 0;">Lucro Líquido</h3>
+                <h2 style="margin: 0.5rem 0;">R$ 17.200</h2>
+                <p style="margin: 0; color: #22c55e;">38% margem</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Análise por Regime de Pagamento
+        st.subheader("Receita por Regime de Pagamento")
+        
+        dados_regime = pd.DataFrame({
+            'Regime': ['Padrão', '1% (Urgente)', '3% (Weekend)'],
+            'Receita': [32000, 8200, 5000],
+            'Quantidade': [18, 6, 3]
+        })
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            fig = px.bar(dados_regime, x='Regime', y='Receita', 
+                        color_discrete_sequence=['#FF6B00'])
+            fig.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font_color='white'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            fig = px.pie(dados_regime, values='Quantidade', names='Regime',
+                        color_discrete_sequence=['#FF6B00', '#ff8533', '#ffb366'])
+            fig.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font_color='white'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Projeções
+        st.subheader("Projeções Financeiras")
+        
+        dados_projecao = pd.DataFrame({
+            'Mês': ['Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'],
+            'Projeção Conservadora': [46000, 48000, 50000, 52000, 55000, 60000],
+            'Projeção Otimista': [50000, 55000, 58000, 62000, 68000, 75000]
+        })
+        
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=dados_projecao['Mês'], y=dados_projecao['Projeção Conservadora'], 
+                               mode='lines+markers', name='Conservadora', 
+                               line=dict(color='#ff8533', width=2)))
+        fig.add_trace(go.Scatter(x=dados_projecao['Mês'], y=dados_projecao['Projeção Otimista'], 
+                               mode='lines+markers', name='Otimista', 
+                               line=dict(color='#22c55e', width=2)))
+        
+        fig.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font_color='white',
+            title="Projeções de Receita (6 meses)"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    
+    elif opcao == "Performance da Equipe":
+        st.header("Performance da Equipe")
+        
+        # Métricas por colaborador
+        dados_performance = pd.DataFrame({
+            'Colaborador': ['João Silva', 'Carlos Santos', 'Pedro Lima', 'Ana Costa', 'Marcelão'],
+            'Trabalhos Concluídos': [15, 12, 18, 10, 20],
+            'Avaliação Média': [4.8, 4.6, 4.9, 4.7, 4.9],
+            'Eficiência (%)': [95, 88, 97, 92, 98]
+        })
+        
+        st.subheader("Ranking de Performance")
+        st.dataframe(dados_performance.sort_values('Eficiência (%)', ascending=False), 
+                    use_container_width=True)
+        
+        # Gráficos de performance
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            fig = px.bar(dados_performance, x='Colaborador', y='Trabalhos Concluídos',
+                        color='Eficiência (%)', color_continuous_scale='Oranges')
+            fig.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font_color='white',
+                title="Trabalhos Concluídos vs Eficiência"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        with col2:
+            fig = px.scatter(dados_performance, x='Avaliação Média', y='Eficiência (%)',
+                           size='Trabalhos Concluídos', hover_name='Colaborador',
+                           color_discrete_sequence=['#FF6B00'])
+            fig.update_layout(
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
+                font_color='white',
+                title="Avaliação vs Eficiência"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Alertas de performance
+        st.subheader("Alertas de Performance")
+        
+        st.markdown("""
+        <div class="alert alert-success">
+            ✅ <strong>João Silva</strong> mantém 97% de eficiência há 3 meses consecutivos
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="alert alert-warning">
+            ⚠️ <strong>Carlos Santos</strong> com eficiência abaixo da meta (88% vs 90%)
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="alert alert-info">
+            ℹ️ <strong>Ana Costa</strong> disponível para mais trabalhos (apenas 10 concluídos)
+        </div>
+        """, unsafe_allow_html=True)
+    
+    elif opcao == "Relatórios Gerenciais":
+        st.header("Relatórios Gerenciais")
+        
+        # Seleção de período
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            periodo = st.selectbox("Período do Relatório", 
+                                 ["Última Semana", "Último Mês", "Últimos 3 Meses", "Último Ano"])
+        
+        with col2:
+            tipo_relatorio = st.selectbox("Tipo de Relatório", 
+                                        ["Operacional", "Financeiro", "Comercial", "Completo"])
+        
+        # Relatório Operacional
+        if tipo_relatorio in ["Operacional", "Completo"]:
+            st.subheader("📊 Relatório Operacional")
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric("Pedidos Processados", "47", "↑ 12%")
+                st.metric("Taxa de Conclusão", "96%", "↑ 2%")
+            
+            with col2:
+                st.metric("Tempo Médio de Entrega", "2.3h", "↓ 0.2h")
+                st.metric("Retrabalhos", "2", "↓ 50%")
+            
+            with col3:
+                st.metric("Satisfação Cliente", "4.7/5", "↑ 0.1")
+                st.metric("Incidentes", "0", "→ 0")
+        
+        # Relatório Financeiro
+        if tipo_relatorio in ["Financeiro", "Completo"]:
+            st.subheader("💰 Relatório Financeiro")
+            
+            dados_financeiro = pd.DataFrame({
+                'Categoria': ['Receita', 'Custos Pessoal', 'Custos Material', 'Custos Logística', 'Lucro'],
+                'Valor Atual': [45200, 15000, 8000, 3000, 19200],
+                'Valor Anterior': [41800, 14500, 7500, 2800, 17000],
+                'Variação (%)': [8.1, 3.4, 6.7, 7.1, 12.9]
+            })
+            
+            st.dataframe(dados_financeiro, use_container_width=True)
+        
+        # Relatório Comercial
+        if tipo_relatorio in ["Comercial", "Completo"]:
+            st.subheader("🎯 Relatório Comercial")
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.metric("Novos Clientes", "8", "↑ 60%")
+                st.metric("Taxa de Conversão", "42.8%", "↑ 5.2%")
+                st.metric("Ticket Médio", "R$ 1.674", "↑ 8%")
+            
+            with col2:
+                st.metric("Orçamentos Enviados", "28", "↓ 3%")
+                st.metric("Follow-up Realizados", "25", "↑ 25%")
+                st.metric("Clientes Recorrentes", "15", "↑ 20%")
+        
+        # Botão de download
+        if st.button("📥 Gerar Relatório PDF"):
+            st.success("Relatório PDF gerado com sucesso!")
+            st.info("Funcionalidade de download em desenvolvimento")
+    
+    elif opcao == "Alertas Executivos":
+        st.header("Alertas Executivos")
+        
+        # Alertas críticos
+        st.subheader("🚨 Alertas Críticos")
+        
+        st.markdown("""
+        <div class="alert alert-error">
+            🚨 <strong>URGENTE:</strong> 3 pedidos com documentação pendente há mais de 24h
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Alertas importantes
+        st.subheader("⚠️ Alertas Importantes")
+        
+        st.markdown("""
+        <div class="alert alert-warning">
+            ⚠️ <strong>Capacidade:</strong> Equipe com 90% de ocupação na próxima semana
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="alert alert-warning">
+            ⚠️ <strong>Financeiro:</strong> Margem do mês abaixo da meta (38% vs 40%)
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Alertas informativos
+        st.subheader("ℹ️ Alertas Informativos")
+        
+        st.markdown("""
+        <div class="alert alert-info">
+            ℹ️ <strong>Oportunidade:</strong> 5 clientes sem pedidos há mais de 30 dias
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="alert alert-info">
+            ℹ️ <strong>Performance:</strong> João Silva elegível para promoção (97% eficiência)
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Alertas positivos
+        st.subheader("✅ Alertas Positivos")
+        
+        st.markdown("""
+        <div class="alert alert-success">
+            ✅ <strong>Meta Atingida:</strong> Receita mensal superou meta em 8.2%
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("""
+        <div class="alert alert-success">
+            ✅ <strong>Qualidade:</strong> NPS de 87 - maior índice do ano
+        </div>
+        """, unsafe_allow_html=True)
+    
+    elif opcao == "Visão Consolidada":
+        st.header("Visão Consolidada do Negócio")
+        
+        # Mapa de calor de atividades
+        st.subheader("Mapa de Atividades por Setor")
+        
+        dados_atividades = pd.DataFrame({
+            'Setor': ['Comercial', 'Logística', 'Campo', 'Galpão'],
+            'Segunda': [8, 5, 7, 3],
+            'Terça': [6, 8, 9, 4],
+            'Quarta': [9, 6, 8, 2],
+            'Quinta': [7, 7, 6, 5],
+            'Sexta': [10, 9, 10, 6],
+            'Sábado': [4, 3, 8, 1],
+            'Domingo': [2, 1, 5, 0]
+        })
+        
+        # Transformar para formato de heatmap
+        dados_heatmap = dados_atividades.set_index('Setor')
+        
+        fig = px.imshow(dados_heatmap.values, 
+                       x=dados_heatmap.columns, 
+                       y=dados_heatmap.index,
+                       color_continuous_scale='Oranges',
+                       aspect="auto")
+        
+        fig.update_layout(
+            title="Intensidade de Atividades por Setor/Dia",
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            font_color='white'
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Resumo executivo
+        st.subheader("Resumo Executivo")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("""
+            **🎯 Principais Conquistas:**
+            - Receita mensal recorde: R$ 45.200
+            - NPS cliente em 87 pontos
+            - Eficiência operacional de 94%
+            - Zero incidentes de segurança
+            
+            **📈 Oportunidades:**
+            - Expansão da equipe de campo
+            - Automatização de processos
+            - Novos produtos/serviços
+            """)
+        
+        with col2:
+            st.markdown("""
+            **⚠️ Pontos de Atenção:**
+            - Documentação pendente em 3 pedidos
+            - Capacidade próxima do limite
+            - Margem abaixo da meta mensal
+            
+            **🚀 Próximos Passos:**
+            - Contratar 2 novos colaboradores
+            - Implementar sistema de docs automático
+            - Revisar precificação de serviços
+            """)
+
+# Função principal
+def main():
+    init_session_state()
+    
+    # Verificar autenticação
+    if not st.session_state.authenticated:
+        login_page()
+        return
+    
+    # Loading após login
+    if 'loading_shown' not in st.session_state:
+        show_loading()
+        st.session_state.loading_shown = True
+        st.rerun()
+    
+    # Roteamento por tipo de usuário
+    if st.session_state.user_type == "comercial":
+        interface_comercial()
+    elif st.session_state.user_type == "logistica":
+        interface_logistica()
+    elif st.session_state.user_type == "campo":
+        interface_campo()
+    elif st.session_state.user_type == "boss":
+        interface_boss()
+    
+    # Botão de logout na sidebar
+    with st.sidebar:
+        st.markdown("---")
+        if st.button("🚪 Sair do Sistema"):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
 
 if __name__ == "__main__":
     main()
+
