@@ -318,44 +318,72 @@ def init_session_state():
 
 # Função de Login
 def login_page():
-    st.markdown("""
-    <div class="login-container">
-        <div class="login-box">
-            <img src="{}" class="login-logo" alt="NEXO Logo">
-            <h2 style="color: #1a1a1a; margin-bottom: 2rem;">NEXO</h2>
-            <p style="color: #666; margin-bottom: 2rem;">Núcleo de Excelência Operacional</p>
-        </div>
-    </div>
-    """.format(NEXO_LOGO_BASE64), unsafe_allow_html=True)
+    # Container centralizado simples
+    col1, col2, col3 = st.columns([1, 2, 1])
     
-    with st.container():
-        st.markdown("<div style='background: white; padding: 2rem; border-radius: 16px; max-width: 400px; margin: 0 auto;'>", unsafe_allow_html=True)
+    with col2:
+        st.markdown("<br><br><br>", unsafe_allow_html=True)
+        
+        # Logo NEXO
+        st.markdown(f"""
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <img src="{NEXO_LOGO_BASE64}" style="width: 120px; height: auto;">
+            <h2 style="color: #FF6B00; margin: 1rem 0 0.5rem 0;">NEXO</h2>
+            <p style="color: #888; margin: 0;">Núcleo de Excelência Operacional</p>
+        </div>
+        """, unsafe_allow_html=True)
         
         st.markdown("### Acesso ao Sistema")
         
-        usuario = st.text_input("Usuário", placeholder="Digite seu usuário")
-        senha = st.text_input("Senha", type="password", placeholder="Digite sua senha")
-        
-        if st.button("Entrar", use_container_width=True):
-            # Validação de credenciais
-            credenciais = {
-                "comercial": {"senha": "com123", "tipo": "comercial", "nome": "Equipe Comercial"},
-                "marcelao": {"senha": "log123", "tipo": "logistica", "nome": "Marcelão"},
-                "joao": {"senha": "campo123", "tipo": "campo", "nome": "João Silva"},
-                "carlos": {"senha": "campo123", "tipo": "campo", "nome": "Carlos Santos"},
-                "pedro": {"senha": "campo123", "tipo": "campo", "nome": "Pedro Lima"},
-                "boss": {"senha": "boss123", "tipo": "boss", "nome": "Diretor Executivo"}
-            }
+        # Formulário com Enter funcional
+        with st.form("login_form"):
+            usuario = st.text_input("Usuário", placeholder="Digite seu usuário")
+            senha = st.text_input("Senha", type="password", placeholder="Digite sua senha")
             
-            if usuario in credenciais and credenciais[usuario]["senha"] == senha:
-                st.session_state.authenticated = True
-                st.session_state.user_type = credenciais[usuario]["tipo"]
-                st.session_state.user_name = credenciais[usuario]["nome"]
-                st.rerun()
-            else:
-                st.error("Usuário ou senha incorretos!")
-        
-        st.markdown("</div>", unsafe_allow_html=True)
+            submitted = st.form_submit_button("Entrar", use_container_width=True)
+            
+            if submitted:
+                # Validação de credenciais
+                credenciais = {
+                    "comercial": {"senha": "com123", "tipo": "comercial", "nome": "Equipe Comercial"},
+                    "marcelao": {"senha": "log123", "tipo": "logistica", "nome": "Marcelão"},
+                    "joao": {"senha": "campo123", "tipo": "campo", "nome": "João Silva"},
+                    "carlos": {"senha": "campo123", "tipo": "campo", "nome": "Carlos Santos"},
+                    "pedro": {"senha": "campo123", "tipo": "campo", "nome": "Pedro Lima"},
+                    "boss": {"senha": "boss123", "tipo": "boss", "nome": "Diretor Executivo"}
+                }
+                
+                if usuario in credenciais and credenciais[usuario]["senha"] == senha:
+                    st.session_state.authenticated = True
+                    st.session_state.user_type = credenciais[usuario]["tipo"]
+                    st.session_state.user_name = credenciais[usuario]["nome"]
+                    st.rerun()
+                else:
+                    st.error("Usuário ou senha incorretos!")
+
+# Função para carregar catálogo de produtos
+def carregar_catalogo_produtos():
+    try:
+        df = pd.read_csv('/home/ubuntu/produtos_catalogo.csv')
+        produtos = []
+        for _, row in df.iterrows():
+            produto = {
+                'nome': row['produto'],
+                'categoria': row['categoria'],
+                'preco': float(row['valor/diária']) if pd.notna(row['valor/diária']) else 0.0
+            }
+            produtos.append(produto)
+        return produtos
+    except:
+        # Fallback para produtos básicos se não conseguir carregar
+        return [
+            {"nome": "Tenda 3x3", "categoria": "estrutura", "preco": 150.0},
+            {"nome": "Tenda 6x6", "categoria": "estrutura", "preco": 300.0},
+            {"nome": "Mesa Redonda", "categoria": "mobiliário", "preco": 25.0},
+            {"nome": "Cadeira Plástica", "categoria": "mobiliário", "preco": 5.0},
+            {"nome": "Som Ambiente", "categoria": "eletrônico", "preco": 200.0},
+            {"nome": "Iluminação LED", "categoria": "eletrônico", "preco": 100.0}
+        ]
 
 # Função de Loading
 def show_loading():
@@ -450,12 +478,11 @@ def interface_comercial():
         st.markdown(f"### Bem-vindo, {st.session_state.user_name}!")
         opcao = st.selectbox("Navegação", [
             "Dashboard",
-            "Novo Pedido", 
+            "Novo Pedido",
             "Gestão de Pedidos",
             "Gerador de Orçamentos",
             "Catálogo de Produtos",
-            "Acompanhamento de Eventos",
-            "Chat da Equipe"
+            "Acompanhamento de Eventos"
         ])
     
     if opcao == "Dashboard":
@@ -554,26 +581,48 @@ def interface_comercial():
             st.subheader("Produtos do Pedido")
             produtos_selecionados = []
             
-            for i in range(3):  # Até 3 produtos por pedido
-                col1, col2, col3, col4 = st.columns(4)
+            # Sistema dinâmico de produtos (sem limitação)
+            if 'num_produtos_pedido' not in st.session_state:
+                st.session_state.num_produtos_pedido = 1
+            
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.write("Adicione quantos produtos precisar:")
+            with col2:
+                if st.button("+ Adicionar Produto"):
+                    st.session_state.num_produtos_pedido += 1
+                    st.rerun()
+            
+            # Carregar catálogo atualizado
+            produtos_catalogo = carregar_catalogo_produtos()
+            
+            for i in range(st.session_state.num_produtos_pedido):
+                st.markdown(f"**Produto {i+1}:**")
+                col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
                 
                 with col1:
                     produto = st.selectbox(f"Produto {i+1}", 
-                                         [""] + [p["nome"] for p in st.session_state.produtos],
+                                         [""] + [p["nome"] for p in produtos_catalogo],
                                          key=f"produto_{i}")
                 
                 with col2:
-                    quantidade = st.number_input(f"Quantidade", min_value=0, value=0, key=f"qtd_{i}")
+                    quantidade = st.number_input(f"Qtd", min_value=0, value=0, key=f"qtd_{i}")
                 
                 with col3:
                     diarias = st.number_input(f"Diárias", min_value=1, value=1, key=f"diarias_{i}")
                 
                 with col4:
                     if produto:
-                        preco_produto = next((p["preco"] for p in st.session_state.produtos if p["nome"] == produto), 0)
+                        preco_produto = next((p["preco"] for p in produtos_catalogo if p["nome"] == produto), 0)
                         preco = st.number_input(f"Preço Unit.", value=preco_produto, key=f"preco_{i}")
                     else:
                         preco = st.number_input(f"Preço Unit.", value=0.0, key=f"preco_{i}")
+                
+                with col5:
+                    if st.button("🗑️", key=f"remove_{i}", help="Remover produto"):
+                        if st.session_state.num_produtos_pedido > 1:
+                            st.session_state.num_produtos_pedido -= 1
+                            st.rerun()
                 
                 if produto and quantidade > 0:
                     produtos_selecionados.append({
@@ -678,8 +727,9 @@ def interface_comercial():
         col1, col2, col3, col4, col5 = st.columns(5)
         
         with col1:
+            produtos_catalogo = carregar_catalogo_produtos()
             produto_selecionado = st.selectbox("Produto", 
-                                             [p["nome"] for p in st.session_state.produtos])
+                                             [p["nome"] for p in produtos_catalogo])
         
         with col2:
             quantidade = st.number_input("Qtd", min_value=1, value=1)
@@ -688,7 +738,7 @@ def interface_comercial():
             diarias = st.number_input("Diárias", min_value=1, value=1)
         
         with col4:
-            preco_produto = next((p["preco"] for p in st.session_state.produtos if p["nome"] == produto_selecionado), 0)
+            preco_produto = next((p["preco"] for p in produtos_catalogo if p["nome"] == produto_selecionado), 0)
             preco = st.number_input("Preço Unit.", value=preco_produto)
         
         with col5:
@@ -754,14 +804,15 @@ def interface_comercial():
         # Filtros
         col1, col2 = st.columns(2)
         with col1:
-            categorias = list(set([p["categoria"] for p in st.session_state.produtos]))
+            produtos_catalogo = carregar_catalogo_produtos()
+            categorias = list(set([p["categoria"] for p in produtos_catalogo]))
             categoria_filtro = st.selectbox("Filtrar por Categoria", ["Todas"] + categorias)
         
         with col2:
             busca = st.text_input("Buscar Produto")
         
         # Produtos filtrados
-        produtos_filtrados = st.session_state.produtos
+        produtos_filtrados = carregar_catalogo_produtos()
         
         if categoria_filtro != "Todas":
             produtos_filtrados = [p for p in produtos_filtrados if p["categoria"] == categoria_filtro]
@@ -836,53 +887,18 @@ def interface_comercial():
                                               status_opcoes, 
                                               key=f"status_evento_{evento['id']}")
                     
-                    # Comunicação com equipe
-                    st.subheader("Comunicação com Equipe")
-                    mensagem = st.text_area(f"Mensagem para equipe do evento {evento['id']}", 
-                                          key=f"msg_{evento['id']}")
+                    # Observações da execução
+                    st.subheader("Observações da Execução")
+                    observacao = st.text_area(f"Observações do evento {evento['id']}", 
+                                            key=f"obs_{evento['id']}")
                     
-                    if st.button(f"Enviar Mensagem", key=f"send_msg_{evento['id']}"):
-                        if mensagem:
-                            st.success("Mensagem enviada para a equipe!")
+                    if st.button(f"Salvar Observações", key=f"save_obs_{evento['id']}"):
+                        if observacao:
+                            st.success("Observações salvas!")
                         else:
-                            st.error("Digite uma mensagem!")
+                            st.warning("Digite uma observação!")
         else:
             st.info("Nenhum evento em andamento no momento.")
-    
-    elif opcao == "Chat da Equipe":
-        st.header("Chat da Equipe")
-        
-        # Seleção de canal
-        canais = ["Geral", "Logística", "Campo", "Emergência"]
-        canal_selecionado = st.selectbox("Canal", canais)
-        
-        # Container do chat
-        st.markdown("""
-        <div class="chat-container">
-            <div class="chat-message">
-                <strong>Marcelão:</strong> Pessoal, evento do Hotel Ramada confirmado para amanhã às 14h
-            </div>
-            <div class="chat-message">
-                <strong>João:</strong> Recebido! Já estou preparando o material
-            </div>
-            <div class="chat-message">
-                <strong>Comercial:</strong> Cliente solicitou mudança na decoração. Vou enviar as especificações
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Input de mensagem
-        col1, col2 = st.columns([4, 1])
-        
-        with col1:
-            nova_mensagem = st.text_input("Digite sua mensagem...", key="chat_input")
-        
-        with col2:
-            if st.button("Enviar"):
-                if nova_mensagem:
-                    # Aqui seria implementado o sistema de chat real
-                    st.success("Mensagem enviada!")
-                    st.rerun()
 
 # Interface Logística
 def interface_logistica():
@@ -895,7 +911,514 @@ def interface_logistica():
             "Gestão de Pedidos",
             "Gestão de Equipes",
             "Tarefas de Galpão",
-            "Documentos",
+            "Documentos"
+        ])
+        
+        if st.button("🚪 Sair do Sistema"):
+            st.session_state.authenticated = False
+            st.rerun()
+    
+    if opcao == "Dashboard":
+        st.header("Dashboard Logístico")
+        
+        # KPIs Logísticos
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.markdown("""
+            <div class="metric-card">
+                <h3 style="color: var(--nexo-orange); margin: 0;">Entregas Hoje</h3>
+                <h2 style="margin: 0.5rem 0;">5</h2>
+                <p style="margin: 0; color: #22c55e;">↑ 2 vs ontem</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("""
+            <div class="metric-card">
+                <h3 style="color: var(--nexo-orange); margin: 0;">Equipes Ativas</h3>
+                <h2 style="margin: 0.5rem 0;">0/5</h2>
+                <p style="margin: 0; color: #f59e0b;">Nenhuma equipe cadastrada</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown("""
+            <div class="metric-card">
+                <h3 style="color: var(--nexo-orange); margin: 0;">Documentos Pendentes</h3>
+                <h2 style="margin: 0.5rem 0;">3</h2>
+                <p style="margin: 0; color: #ef4444;">Requer atenção</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col4:
+            st.markdown("""
+            <div class="metric-card">
+                <h3 style="color: var(--nexo-orange); margin: 0;">Eficiência</h3>
+                <h2 style="margin: 0.5rem 0;">94%</h2>
+                <p style="margin: 0; color: #22c55e;">↑ 2% vs semana anterior</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # Próximas entregas
+        st.subheader("Próximas Entregas (48h)")
+        
+        proximas_entregas = [
+            {"cliente": "Hotel Ramada", "evento": "Convenção Médica", "data": "Hoje 14:00", "equipe": "Não designada"},
+            {"cliente": "Clube Atlético", "evento": "Festa Junina", "data": "Amanhã 08:00", "equipe": "Não designada"},
+            {"cliente": "Empresa XYZ", "evento": "Confraternização", "data": "Amanhã 16:00", "equipe": "Não designada"}
+        ]
+        
+        for entrega in proximas_entregas:
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.write(f"**{entrega['cliente']}**")
+            with col2:
+                st.write(entrega['evento'])
+            with col3:
+                st.write(entrega['data'])
+            with col4:
+                if entrega['equipe'] == "Não designada":
+                    st.warning("⚠️ Sem equipe")
+                else:
+                    st.success("✅ Designada")
+        
+        # Alertas
+        st.subheader("Alertas Operacionais")
+        
+        alertas = [
+            {"tipo": "warning", "mensagem": "3 documentos pendentes de upload"},
+            {"tipo": "info", "mensagem": "Nenhuma equipe cadastrada no sistema"},
+            {"tipo": "error", "mensagem": "5 entregas sem equipe designada"}
+        ]
+        
+        for alerta in alertas:
+            if alerta['tipo'] == 'warning':
+                st.warning(f"⚠️ {alerta['mensagem']}")
+            elif alerta['tipo'] == 'info':
+                st.info(f"ℹ️ {alerta['mensagem']}")
+            elif alerta['tipo'] == 'error':
+                st.error(f"🚨 {alerta['mensagem']}")
+    
+    elif opcao == "Gestão de Pedidos":
+        st.header("Gestão de Pedidos - Logística")
+        
+        # Pedidos vindos do comercial
+        pedidos_logistica = [p for p in st.session_state.pedidos if p['status'] in ['Na Logística', 'Pendente']]
+        
+        if pedidos_logistica:
+            for pedido in pedidos_logistica:
+                with st.expander(f"Pedido #{pedido['id']} - {pedido['cliente']} - {pedido['evento']}"):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.write(f"**Cliente:** {pedido['cliente']}")
+                        st.write(f"**Evento:** {pedido['evento']}")
+                        st.write(f"**Data do Evento:** {pedido['data_evento']}")
+                        st.write(f"**Local:** {pedido['local']}")
+                        st.write(f"**Regime:** {pedido['regime']}")
+                    
+                    with col2:
+                        st.write(f"**Contato:** {pedido['contato']}")
+                        st.write(f"**E-mail:** {pedido['email']}")
+                        st.write(f"**Total:** R$ {pedido['total']:.2f}")
+                        st.write(f"**Status:** {pedido['status']}")
+                    
+                    # Datas específicas de logística
+                    st.subheader("Datas Específicas de Logística")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        data_entrega = st.date_input(f"Data de Entrega", key=f"data_entrega_{pedido['id']}")
+                        hora_entrega = st.time_input(f"Hora de Entrega", key=f"hora_entrega_{pedido['id']}")
+                        responsavel_recepcao = st.text_input(f"Responsável pela Recepção", key=f"resp_recepcao_{pedido['id']}")
+                    
+                    with col2:
+                        data_recolhimento = st.date_input(f"Data de Recolhimento", key=f"data_recolhimento_{pedido['id']}")
+                        hora_recolhimento = st.time_input(f"Hora de Recolhimento", key=f"hora_recolhimento_{pedido['id']}")
+                        responsavel_liberacao = st.text_input(f"Responsável pela Liberação", key=f"resp_liberacao_{pedido['id']}")
+                    
+                    # Observações específicas
+                    observacoes_logistica = st.text_area(f"Observações da Logística", key=f"obs_log_{pedido['id']}")
+                    
+                    # Alocação de equipes
+                    st.subheader("Alocação de Equipes")
+                    
+                    if 'equipes' not in st.session_state or not st.session_state.equipes:
+                        st.warning("⚠️ Nenhuma equipe cadastrada. Cadastre equipes na seção 'Gestão de Equipes'")
+                    else:
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            st.write("**Equipe para Entrega:**")
+                            equipe_entrega = st.multiselect(
+                                "Selecionar colaboradores para entrega",
+                                [e['nome'] for e in st.session_state.equipes if e['status'] == 'Disponível'],
+                                key=f"equipe_entrega_{pedido['id']}"
+                            )
+                        
+                        with col2:
+                            st.write("**Equipe para Recolhimento:**")
+                            equipe_recolhimento = st.multiselect(
+                                "Selecionar colaboradores para recolhimento",
+                                [e['nome'] for e in st.session_state.equipes if e['status'] == 'Disponível'],
+                                key=f"equipe_recolhimento_{pedido['id']}"
+                            )
+                    
+                    # Botões de ação
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        if st.button(f"Salvar Configurações", key=f"save_config_{pedido['id']}"):
+                            st.success("Configurações salvas!")
+                    
+                    with col2:
+                        if st.button(f"Enviar para Campo", key=f"send_campo_{pedido['id']}"):
+                            pedido['status'] = "No Campo"
+                            st.success("Pedido enviado para equipe de campo!")
+                            st.rerun()
+                    
+                    # Produtos do pedido
+                    if pedido['produtos']:
+                        st.subheader("Produtos do Pedido:")
+                        df_produtos = pd.DataFrame(pedido['produtos'])
+                        st.dataframe(df_produtos, use_container_width=True)
+        else:
+            st.info("Nenhum pedido na logística no momento.")
+    
+    elif opcao == "Gestão de Equipes":
+        st.header("Gestão de Equipes")
+        
+        # Inicializar equipes vazias
+        if 'equipes' not in st.session_state:
+            st.session_state.equipes = []
+        
+        # Adicionar novo colaborador
+        st.subheader("Adicionar Novo Colaborador")
+        
+        with st.form("novo_colaborador"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                nome = st.text_input("Nome Completo")
+                especialidade = st.selectbox("Especialidade", [
+                    "Montagem", "Elétrica", "Logística", "Decoração", 
+                    "Supervisão", "Som e Luz", "Segurança", "Limpeza"
+                ])
+                telefone = st.text_input("Telefone")
+            
+            with col2:
+                email = st.text_input("E-mail")
+                status = st.selectbox("Status Inicial", ["Disponível", "Ocupado", "Férias", "Afastado"])
+                observacoes = st.text_area("Observações")
+            
+            submitted = st.form_submit_button("Adicionar Colaborador")
+            
+            if submitted and nome:
+                novo_colaborador = {
+                    "id": len(st.session_state.equipes) + 1,
+                    "nome": nome,
+                    "especialidade": especialidade,
+                    "telefone": telefone,
+                    "email": email,
+                    "status": status,
+                    "observacoes": observacoes,
+                    "data_cadastro": datetime.now().strftime("%Y-%m-%d"),
+                    "trabalhos_concluidos": 0,
+                    "avaliacao_media": 0.0
+                }
+                
+                st.session_state.equipes.append(novo_colaborador)
+                st.success(f"Colaborador {nome} adicionado com sucesso!")
+                st.rerun()
+        
+        # Lista de colaboradores
+        st.subheader("Equipe Atual")
+        
+        if st.session_state.equipes:
+            for colaborador in st.session_state.equipes:
+                with st.expander(f"{colaborador['nome']} - {colaborador['especialidade']} ({colaborador['status']})"):
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        st.write(f"**Nome:** {colaborador['nome']}")
+                        st.write(f"**Especialidade:** {colaborador['especialidade']}")
+                        st.write(f"**Status:** {colaborador['status']}")
+                    
+                    with col2:
+                        st.write(f"**Telefone:** {colaborador['telefone']}")
+                        st.write(f"**E-mail:** {colaborador['email']}")
+                        st.write(f"**Cadastrado em:** {colaborador['data_cadastro']}")
+                    
+                    with col3:
+                        st.write(f"**Trabalhos:** {colaborador['trabalhos_concluidos']}")
+                        st.write(f"**Avaliação:** {colaborador['avaliacao_media']:.1f}/5.0")
+                        
+                        # Alterar status
+                        novo_status = st.selectbox(
+                            "Alterar Status",
+                            ["Disponível", "Ocupado", "Férias", "Afastado"],
+                            index=["Disponível", "Ocupado", "Férias", "Afastado"].index(colaborador['status']),
+                            key=f"status_{colaborador['id']}"
+                        )
+                        
+                        if st.button(f"Atualizar Status", key=f"update_{colaborador['id']}"):
+                            colaborador['status'] = novo_status
+                            st.success("Status atualizado!")
+                            st.rerun()
+                    
+                    if colaborador['observacoes']:
+                        st.write(f"**Observações:** {colaborador['observacoes']}")
+        else:
+            st.info("Nenhum colaborador cadastrado. Adicione colaboradores para começar a formar sua equipe.")
+    
+    elif opcao == "Tarefas de Galpão":
+        st.header("Tarefas de Galpão")
+        
+        # Criar nova tarefa
+        st.subheader("Nova Tarefa")
+        
+        with st.form("nova_tarefa"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                titulo = st.text_input("Título da Tarefa")
+                tipo_tarefa = st.selectbox("Tipo de Tarefa", [
+                    "Limpeza de Equipamentos",
+                    "Organização do Estoque",
+                    "Manutenção Preventiva",
+                    "Inventário",
+                    "Preparação de Material",
+                    "Controle de Qualidade",
+                    "Outros"
+                ])
+                prioridade = st.selectbox("Prioridade", ["Baixa", "Média", "Alta", "Urgente"])
+            
+            with col2:
+                if st.session_state.equipes:
+                    responsavel = st.selectbox("Responsável", 
+                                             ["Não atribuído"] + [e['nome'] for e in st.session_state.equipes])
+                else:
+                    responsavel = st.selectbox("Responsável", ["Não atribuído"])
+                    st.warning("⚠️ Nenhuma equipe cadastrada")
+                
+                prazo = st.date_input("Prazo")
+                descricao = st.text_area("Descrição da Tarefa")
+            
+            submitted = st.form_submit_button("Criar Tarefa")
+            
+            if submitted and titulo:
+                nova_tarefa = {
+                    "id": len(st.session_state.tarefas_galpao) + 1,
+                    "titulo": titulo,
+                    "tipo": tipo_tarefa,
+                    "descricao": descricao,
+                    "responsavel": responsavel,
+                    "prioridade": prioridade,
+                    "prazo": str(prazo),
+                    "status": "Pendente",
+                    "data_criacao": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "data_conclusao": None
+                }
+                
+                st.session_state.tarefas_galpao.append(nova_tarefa)
+                st.success("Tarefa criada com sucesso!")
+                st.rerun()
+        
+        # Lista de tarefas
+        st.subheader("Tarefas Ativas")
+        
+        if st.session_state.tarefas_galpao:
+            # Filtros
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                filtro_status = st.selectbox("Filtrar por Status", 
+                                           ["Todos", "Pendente", "Em Andamento", "Concluída"])
+            
+            with col2:
+                filtro_prioridade = st.selectbox("Filtrar por Prioridade", 
+                                                ["Todas", "Baixa", "Média", "Alta", "Urgente"])
+            
+            with col3:
+                filtro_tipo = st.selectbox("Filtrar por Tipo", 
+                                         ["Todos"] + [
+                                             "Limpeza de Equipamentos",
+                                             "Organização do Estoque",
+                                             "Manutenção Preventiva",
+                                             "Inventário",
+                                             "Preparação de Material",
+                                             "Controle de Qualidade",
+                                             "Outros"
+                                         ])
+            
+            # Aplicar filtros
+            tarefas_filtradas = st.session_state.tarefas_galpao
+            
+            if filtro_status != "Todos":
+                tarefas_filtradas = [t for t in tarefas_filtradas if t['status'] == filtro_status]
+            
+            if filtro_prioridade != "Todas":
+                tarefas_filtradas = [t for t in tarefas_filtradas if t['prioridade'] == filtro_prioridade]
+            
+            if filtro_tipo != "Todos":
+                tarefas_filtradas = [t for t in tarefas_filtradas if t['tipo'] == filtro_tipo]
+            
+            # Exibir tarefas
+            for tarefa in tarefas_filtradas:
+                # Cor da prioridade
+                cor_prioridade = {
+                    "Baixa": "#22c55e",
+                    "Média": "#f59e0b", 
+                    "Alta": "#ef4444",
+                    "Urgente": "#dc2626"
+                }
+                
+                with st.expander(f"#{tarefa['id']} - {tarefa['titulo']} ({tarefa['status']})"):
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        st.write(f"**Tipo:** {tarefa['tipo']}")
+                        st.write(f"**Responsável:** {tarefa['responsavel']}")
+                        st.markdown(f"**Prioridade:** <span style='color: {cor_prioridade[tarefa['prioridade']]}'>{tarefa['prioridade']}</span>", 
+                                  unsafe_allow_html=True)
+                    
+                    with col2:
+                        st.write(f"**Prazo:** {tarefa['prazo']}")
+                        st.write(f"**Criada em:** {tarefa['data_criacao']}")
+                        st.write(f"**Status:** {tarefa['status']}")
+                    
+                    with col3:
+                        # Alterar status
+                        novo_status = st.selectbox(
+                            "Alterar Status",
+                            ["Pendente", "Em Andamento", "Concluída"],
+                            index=["Pendente", "Em Andamento", "Concluída"].index(tarefa['status']),
+                            key=f"status_tarefa_{tarefa['id']}"
+                        )
+                        
+                        if st.button(f"Atualizar", key=f"update_tarefa_{tarefa['id']}"):
+                            tarefa['status'] = novo_status
+                            if novo_status == "Concluída":
+                                tarefa['data_conclusao'] = datetime.now().strftime("%Y-%m-%d %H:%M")
+                            st.success("Status atualizado!")
+                            st.rerun()
+                    
+                    if tarefa['descricao']:
+                        st.write(f"**Descrição:** {tarefa['descricao']}")
+                    
+                    if tarefa['data_conclusao']:
+                        st.success(f"✅ Concluída em: {tarefa['data_conclusao']}")
+        else:
+            st.info("Nenhuma tarefa criada. Crie uma nova tarefa para começar.")
+    
+    elif opcao == "Documentos":
+        st.header("Gestão de Documentos")
+        
+        # Documentos obrigatórios
+        st.subheader("Documentos Obrigatórios")
+        
+        documentos_obrigatorios = [
+            "Ordem de Separação",
+            "Confirmação de Reserva", 
+            "Romaneio de Entrega",
+            "Termo de Recebimento",
+            "Ordem de Recolhimento",
+            "Relatório de Inspeção"
+        ]
+        
+        for doc in documentos_obrigatorios:
+            col1, col2, col3 = st.columns([2, 1, 1])
+            
+            with col1:
+                st.write(f"📄 **{doc}**")
+            
+            with col2:
+                uploaded_file = st.file_uploader(
+                    f"Upload {doc}",
+                    type=['pdf', 'jpg', 'png', 'docx'],
+                    key=f"upload_{doc.replace(' ', '_').lower()}"
+                )
+            
+            with col3:
+                if uploaded_file:
+                    st.success("✅ Anexado")
+                else:
+                    st.warning("⚠️ Pendente")
+        
+        # Documentos do local
+        st.subheader("Documentos do Local")
+        
+        documentos_local = [
+            "Planta do Local",
+            "Autorização de Uso",
+            "Normas de Segurança",
+            "Contato Responsável"
+        ]
+        
+        for doc in documentos_local:
+            col1, col2, col3 = st.columns([2, 1, 1])
+            
+            with col1:
+                st.write(f"🏢 **{doc}**")
+            
+            with col2:
+                uploaded_file = st.file_uploader(
+                    f"Upload {doc}",
+                    type=['pdf', 'jpg', 'png', 'docx'],
+                    key=f"upload_local_{doc.replace(' ', '_').lower()}"
+                )
+            
+            with col3:
+                if uploaded_file:
+                    st.success("✅ Anexado")
+                else:
+                    st.info("📋 Opcional")
+        
+        # Documentos técnicos
+        st.subheader("Documentos Técnicos")
+        
+        documentos_tecnicos = [
+            "Manual de Equipamentos",
+            "Certificados de Segurança",
+            "Laudos Técnicos",
+            "Especificações Técnicas"
+        ]
+        
+        for doc in documentos_tecnicos:
+            col1, col2, col3 = st.columns([2, 1, 1])
+            
+            with col1:
+                st.write(f"🔧 **{doc}**")
+            
+            with col2:
+                uploaded_file = st.file_uploader(
+                    f"Upload {doc}",
+                    type=['pdf', 'jpg', 'png', 'docx'],
+                    key=f"upload_tecnico_{doc.replace(' ', '_').lower()}"
+                )
+            
+            with col3:
+                if uploaded_file:
+                    st.success("✅ Anexado")
+                else:
+                    st.info("📋 Opcional")
+        
+        # Geração automática de documentos
+        st.subheader("Geração Automática")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("📋 Gerar Ordem de Separação"):
+                st.success("Ordem de Separação gerada automaticamente!")
+                st.info("Documento baseado nos pedidos ativos")
+        
+        with col2:
+            if st.button("🚚 Gerar Romaneio de Entrega"):
+                st.success("Romaneio de Entrega gerado automaticamente!")
+                st.info("Documento baseado nas entregas do dia")
             "Chat Integrado"
         ])
     
@@ -1338,6 +1861,396 @@ def interface_logistica():
 
 # Interface Equipe de Campo
 def interface_campo():
+    st.title("NEXO - Equipe de Campo")
+    
+    with st.sidebar:
+        st.markdown(f"### Bem-vindo, {st.session_state.user_name}!")
+        opcao = st.selectbox("Navegação", [
+            "Pedidos Designados",
+            "Trabalho Atual",
+            "Histórico"
+        ])
+        
+        if st.button("🚪 Sair do Sistema"):
+            st.session_state.authenticated = False
+            st.rerun()
+    
+    if opcao == "Pedidos Designados":
+        st.header("Pedidos Designados")
+        
+        # Tabela de Entregas
+        st.subheader("📦 ENTREGAS PENDENTES")
+        
+        # Pedidos para entrega vindos da logística
+        pedidos_entrega = [p for p in st.session_state.pedidos if p['status'] == 'No Campo' and not p.get('entregue', False)]
+        
+        if pedidos_entrega:
+            for pedido in pedidos_entrega:
+                with st.container():
+                    st.markdown(f"""
+                    <div class="metric-card" style="border-left: 4px solid #22c55e;">
+                        <h4 style="color: var(--nexo-orange); margin: 0;">ENTREGA - Pedido #{pedido['id']}</h4>
+                        <p style="margin: 0.5rem 0;"><strong>Cliente:</strong> {pedido['cliente']}</p>
+                        <p style="margin: 0.5rem 0;"><strong>Evento:</strong> {pedido['evento']}</p>
+                        <p style="margin: 0.5rem 0;"><strong>Data:</strong> {pedido['data_evento']}</p>
+                        <p style="margin: 0.5rem 0;"><strong>Local:</strong> {pedido['local']}</p>
+                        <p style="margin: 0.5rem 0;"><strong>Total:</strong> R$ {pedido['total']:.2f}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    if st.button(f"🚚 INICIAR ENTREGA #{pedido['id']}", key=f"iniciar_entrega_{pedido['id']}", use_container_width=True):
+                        st.session_state.trabalho_atual = {
+                            "pedido": pedido,
+                            "tipo": "entrega",
+                            "etapa": 1,
+                            "etapas_concluidas": [],
+                            "dados_etapas": {}
+                        }
+                        st.success(f"Entrega do pedido #{pedido['id']} iniciada!")
+                        st.rerun()
+        else:
+            st.info("Nenhuma entrega pendente no momento.")
+        
+        st.markdown("---")
+        
+        # Tabela de Recolhimentos
+        st.subheader("📤 RECOLHIMENTOS PENDENTES")
+        
+        # Pedidos para recolhimento (já entregues)
+        pedidos_recolhimento = [p for p in st.session_state.pedidos if p.get('entregue', False) and not p.get('recolhido', False)]
+        
+        if pedidos_recolhimento:
+            for pedido in pedidos_recolhimento:
+                with st.container():
+                    st.markdown(f"""
+                    <div class="metric-card" style="border-left: 4px solid #f59e0b;">
+                        <h4 style="color: var(--nexo-orange); margin: 0;">RECOLHIMENTO - Pedido #{pedido['id']}</h4>
+                        <p style="margin: 0.5rem 0;"><strong>Cliente:</strong> {pedido['cliente']}</p>
+                        <p style="margin: 0.5rem 0;"><strong>Evento:</strong> {pedido['evento']}</p>
+                        <p style="margin: 0.5rem 0;"><strong>Data:</strong> {pedido['data_evento']}</p>
+                        <p style="margin: 0.5rem 0;"><strong>Local:</strong> {pedido['local']}</p>
+                        <p style="margin: 0.5rem 0;"><strong>Status:</strong> Entregue - Aguardando Recolhimento</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    if st.button(f"📦 INICIAR RECOLHIMENTO #{pedido['id']}", key=f"iniciar_recolhimento_{pedido['id']}", use_container_width=True):
+                        st.session_state.trabalho_atual = {
+                            "pedido": pedido,
+                            "tipo": "recolhimento",
+                            "etapa": 1,
+                            "etapas_concluidas": [],
+                            "dados_etapas": {}
+                        }
+                        st.success(f"Recolhimento do pedido #{pedido['id']} iniciado!")
+                        st.rerun()
+        else:
+            st.info("Nenhum recolhimento pendente no momento.")
+    
+    elif opcao == "Trabalho Atual":
+        st.header("Trabalho Atual")
+        
+        if 'trabalho_atual' not in st.session_state or not st.session_state.trabalho_atual:
+            st.info("Nenhum trabalho em andamento. Selecione um pedido na aba 'Pedidos Designados' para começar.")
+            return
+        
+        trabalho = st.session_state.trabalho_atual
+        pedido = trabalho['pedido']
+        tipo_trabalho = trabalho['tipo']
+        etapa_atual = trabalho['etapa']
+        
+        # Cabeçalho do trabalho
+        st.markdown(f"""
+        <div class="metric-card">
+            <h3 style="color: var(--nexo-orange); margin: 0;">{tipo_trabalho.upper()} - Pedido #{pedido['id']}</h3>
+            <p style="margin: 0.5rem 0;"><strong>Cliente:</strong> {pedido['cliente']}</p>
+            <p style="margin: 0.5rem 0;"><strong>Evento:</strong> {pedido['evento']}</p>
+            <p style="margin: 0.5rem 0;"><strong>Local:</strong> {pedido['local']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Progress bar
+        progresso = (etapa_atual - 1) / 7 * 100
+        st.progress(progresso / 100)
+        st.write(f"Etapa {etapa_atual} de 7 - {progresso:.0f}% concluído")
+        
+        # Etapas do trabalho
+        etapas = [
+            "Check-in Chegada",
+            "Conferência de Material", 
+            "Início da Montagem",
+            "Montagem Concluída",
+            "Início da Desmontagem",
+            "Material Recolhido",
+            "Check-out Saída"
+        ]
+        
+        # Mostrar etapas concluídas
+        if trabalho['etapas_concluidas']:
+            st.subheader("✅ Etapas Concluídas")
+            for etapa_id in trabalho['etapas_concluidas']:
+                st.success(f"✅ Etapa {etapa_id}: {etapas[etapa_id-1]}")
+        
+        # Etapa atual
+        if etapa_atual <= 7:
+            st.subheader(f"🔄 Etapa {etapa_atual}: {etapas[etapa_atual-1]}")
+            
+            # Formulário da etapa atual
+            executar_etapa_trabalho(etapa_atual, trabalho)
+        else:
+            st.success("🎉 Trabalho Concluído!")
+            
+            if st.button("Finalizar Trabalho"):
+                # Marcar como entregue ou recolhido
+                if tipo_trabalho == "entrega":
+                    pedido['entregue'] = True
+                    pedido['status'] = "Entregue"
+                else:
+                    pedido['recolhido'] = True
+                    pedido['status'] = "Concluído"
+                
+                # Limpar trabalho atual
+                st.session_state.trabalho_atual = None
+                st.success("Trabalho finalizado com sucesso!")
+                st.rerun()
+    
+    elif opcao == "Histórico":
+        st.header("Histórico de Trabalhos")
+        
+        # Trabalhos concluídos
+        trabalhos_concluidos = [p for p in st.session_state.pedidos if p['status'] == 'Concluído']
+        
+        if trabalhos_concluidos:
+            for trabalho in trabalhos_concluidos:
+                with st.expander(f"Trabalho #{trabalho['id']} - {trabalho['cliente']} - {trabalho['evento']}"):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.write(f"**Cliente:** {trabalho['cliente']}")
+                        st.write(f"**Evento:** {trabalho['evento']}")
+                        st.write(f"**Data:** {trabalho['data_evento']}")
+                        st.write(f"**Local:** {trabalho['local']}")
+                    
+                    with col2:
+                        st.write(f"**Status:** {trabalho['status']}")
+                        st.write(f"**Total:** R$ {trabalho['total']:.2f}")
+                        st.write(f"**Regime:** {trabalho['regime']}")
+                    
+                    # Produtos do trabalho
+                    if trabalho['produtos']:
+                        st.subheader("Produtos:")
+                        df_produtos = pd.DataFrame(trabalho['produtos'])
+                        st.dataframe(df_produtos, use_container_width=True)
+        else:
+            st.info("Nenhum trabalho concluído ainda.")
+
+# Função para executar etapas do trabalho
+def executar_etapa_trabalho(etapa, trabalho):
+    pedido = trabalho['pedido']
+    
+    if etapa == 1:  # Check-in Chegada
+        st.write("📍 **Check-in no local de trabalho**")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("📍 Usar Minha Localização", use_container_width=True):
+                st.success("Localização capturada!")
+                st.info("Latitude: -23.5505, Longitude: -46.6333")
+        
+        with col2:
+            foto_chegada = st.file_uploader("📸 Foto do Local de Chegada", type=['jpg', 'png'])
+        
+        observacoes_chegada = st.text_area("Observações da Chegada")
+        
+        if st.button("✅ Concluir Check-in", use_container_width=True):
+            if foto_chegada and observacoes_chegada:
+                trabalho['etapas_concluidas'].append(etapa)
+                trabalho['etapa'] = etapa + 1
+                trabalho['dados_etapas'][f'etapa_{etapa}'] = {
+                    'foto': foto_chegada.name,
+                    'observacoes': observacoes_chegada,
+                    'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                st.success("Check-in concluído!")
+                st.rerun()
+            else:
+                st.error("Preencha todos os campos obrigatórios!")
+    
+    elif etapa == 2:  # Conferência de Material
+        st.write("📋 **Conferência de Material**")
+        
+        # Lista de produtos do pedido
+        if pedido['produtos']:
+            st.subheader("Produtos para Conferir:")
+            
+            for i, produto in enumerate(pedido['produtos']):
+                col1, col2 = st.columns([3, 1])
+                
+                with col1:
+                    st.write(f"• {produto['produto']} - Qtd: {produto['quantidade']} - Diárias: {produto['diarias']}")
+                
+                with col2:
+                    conferido = st.checkbox("Conferido", key=f"conf_{i}")
+        
+        foto_material = st.file_uploader("📸 Foto do Material Conferido", type=['jpg', 'png'])
+        observacoes_material = st.text_area("Observações da Conferência")
+        
+        if st.button("✅ Concluir Conferência", use_container_width=True):
+            if foto_material:
+                trabalho['etapas_concluidas'].append(etapa)
+                trabalho['etapa'] = etapa + 1
+                trabalho['dados_etapas'][f'etapa_{etapa}'] = {
+                    'foto': foto_material.name,
+                    'observacoes': observacoes_material,
+                    'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                st.success("Conferência concluída!")
+                st.rerun()
+            else:
+                st.error("Foto do material é obrigatória!")
+    
+    elif etapa == 3:  # Início da Montagem
+        st.write("🔧 **Início da Montagem**")
+        
+        foto_inicio = st.file_uploader("📸 Foto do Início da Montagem", type=['jpg', 'png'])
+        observacoes_inicio = st.text_area("Observações do Início")
+        
+        if st.button("✅ Confirmar Início da Montagem", use_container_width=True):
+            if foto_inicio:
+                trabalho['etapas_concluidas'].append(etapa)
+                trabalho['etapa'] = etapa + 1
+                trabalho['dados_etapas'][f'etapa_{etapa}'] = {
+                    'foto': foto_inicio.name,
+                    'observacoes': observacoes_inicio,
+                    'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                st.success("Início da montagem registrado!")
+                st.rerun()
+            else:
+                st.error("Foto é obrigatória!")
+    
+    elif etapa == 4:  # Montagem Concluída
+        st.write("✅ **Montagem Concluída - Assinatura do Cliente**")
+        
+        foto_conclusao = st.file_uploader("📸 Foto da Montagem Finalizada", type=['jpg', 'png'])
+        
+        # Dados do cliente para assinatura
+        st.subheader("📝 Dados do Cliente")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            nome_cliente = st.text_input("Nome Completo do Cliente", value=pedido['cliente'])
+            cpf_cliente = st.text_input("CPF do Cliente")
+        
+        with col2:
+            st.write("**Assinatura Digital:**")
+            # Simulação de campo de assinatura
+            assinatura_texto = st.text_area("Assinatura (Digite seu nome)", height=100, 
+                                           help="Em um sistema real, aqui seria um campo de desenho para assinatura digital")
+        
+        observacoes_conclusao = st.text_area("Observações da Conclusão")
+        
+        if st.button("✅ Concluir Montagem com Assinatura", use_container_width=True):
+            if foto_conclusao and nome_cliente and cpf_cliente and assinatura_texto:
+                trabalho['etapas_concluidas'].append(etapa)
+                trabalho['etapa'] = etapa + 1
+                trabalho['dados_etapas'][f'etapa_{etapa}'] = {
+                    'foto': foto_conclusao.name,
+                    'nome_cliente': nome_cliente,
+                    'cpf_cliente': cpf_cliente,
+                    'assinatura': assinatura_texto,
+                    'observacoes': observacoes_conclusao,
+                    'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                st.success("Montagem concluída e assinada!")
+                st.rerun()
+            else:
+                st.error("Todos os campos são obrigatórios!")
+    
+    elif etapa == 5:  # Início da Desmontagem
+        st.write("🔧 **Início da Desmontagem**")
+        
+        foto_desmontagem = st.file_uploader("📸 Foto do Início da Desmontagem", type=['jpg', 'png'])
+        observacoes_desmontagem = st.text_area("Observações da Desmontagem")
+        
+        if st.button("✅ Confirmar Início da Desmontagem", use_container_width=True):
+            if foto_desmontagem:
+                trabalho['etapas_concluidas'].append(etapa)
+                trabalho['etapa'] = etapa + 1
+                trabalho['dados_etapas'][f'etapa_{etapa}'] = {
+                    'foto': foto_desmontagem.name,
+                    'observacoes': observacoes_desmontagem,
+                    'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                st.success("Início da desmontagem registrado!")
+                st.rerun()
+            else:
+                st.error("Foto é obrigatória!")
+    
+    elif etapa == 6:  # Material Recolhido
+        st.write("📦 **Material Recolhido**")
+        
+        # Checklist de recolhimento
+        if pedido['produtos']:
+            st.subheader("Checklist de Recolhimento:")
+            
+            for i, produto in enumerate(pedido['produtos']):
+                col1, col2 = st.columns([3, 1])
+                
+                with col1:
+                    st.write(f"• {produto['produto']} - Qtd: {produto['quantidade']}")
+                
+                with col2:
+                    recolhido = st.checkbox("Recolhido", key=f"recol_{i}")
+        
+        foto_recolhimento = st.file_uploader("📸 Foto do Material Recolhido", type=['jpg', 'png'])
+        observacoes_recolhimento = st.text_area("Observações do Recolhimento")
+        
+        if st.button("✅ Confirmar Material Recolhido", use_container_width=True):
+            if foto_recolhimento:
+                trabalho['etapas_concluidas'].append(etapa)
+                trabalho['etapa'] = etapa + 1
+                trabalho['dados_etapas'][f'etapa_{etapa}'] = {
+                    'foto': foto_recolhimento.name,
+                    'observacoes': observacoes_recolhimento,
+                    'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                st.success("Material recolhido!")
+                st.rerun()
+            else:
+                st.error("Foto é obrigatória!")
+    
+    elif etapa == 7:  # Check-out Saída
+        st.write("🚪 **Check-out de Saída**")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("📍 Usar Minha Localização", use_container_width=True):
+                st.success("Localização de saída capturada!")
+                st.info("Latitude: -23.5505, Longitude: -46.6333")
+        
+        with col2:
+            foto_saida = st.file_uploader("📸 Foto Final do Local", type=['jpg', 'png'])
+        
+        relatorio_final = st.text_area("Relatório Final do Trabalho")
+        observacoes_saida = st.text_area("Observações de Saída")
+        
+        if st.button("✅ Finalizar Check-out", use_container_width=True):
+            if foto_saida and relatorio_final:
+                trabalho['etapas_concluidas'].append(etapa)
+                trabalho['etapa'] = etapa + 1
+                trabalho['dados_etapas'][f'etapa_{etapa}'] = {
+                    'foto': foto_saida.name,
+                    'relatorio': relatorio_final,
+                    'observacoes': observacoes_saida,
+                    'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                st.success("Check-out concluído!")
+                st.rerun()
+            else:
+                st.error("Foto e relatório final são obrigatórios!")
     st.title("NEXO - Equipe de Campo")
     
     with st.sidebar:
@@ -2273,4 +3186,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
