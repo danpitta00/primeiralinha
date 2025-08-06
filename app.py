@@ -1419,8 +1419,6 @@ def interface_logistica():
             if st.button("🚚 Gerar Romaneio de Entrega"):
                 st.success("Romaneio de Entrega gerado automaticamente!")
                 st.info("Documento baseado nas entregas do dia")
-            "Chat Integrado"
-        ])
     
     if opcao == "Dashboard":
         st.header("Dashboard Logístico")
@@ -3186,3 +3184,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+        
