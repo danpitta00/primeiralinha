@@ -327,8 +327,9 @@ def login_page():
         # Logo NEXO
         st.markdown(f"""
         <div style="text-align: center; margin-bottom: 2rem;">
-            <img src="{NEXO_LOGO_BASE64}" style="width: 120px; height: auto;">
-            <h2 style="color: #FF6B00; margin: 1rem 0 0.5rem 0;">NEXO</h2>
+            <div style="background: #FF6B00; color: white; padding: 1rem 2rem; border-radius: 8px; display: inline-block; font-size: 24px; font-weight: bold; margin-bottom: 1rem;">
+                NEXO
+            </div>
             <p style="color: #888; margin: 0;">Núcleo de Excelência Operacional</p>
         </div>
         """, unsafe_allow_html=True)
@@ -412,34 +413,79 @@ def classificar_regime(data_evento):
     else:
         return "Padrão"
 
-# Função para gerar PDF
-def gerar_pdf_orcamento(dados_orcamento):
+# Função para gerar PDF do orçamento
+def gerar_pdf_orcamento(dados):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     styles = getSampleStyleSheet()
     story = []
     
-    # Título
-    title_style = ParagraphStyle(
-        'CustomTitle',
+    # Estilo personalizado para cabeçalho
+    titulo_style = ParagraphStyle(
+        'TituloCustom',
         parent=styles['Heading1'],
         fontSize=24,
-        spaceAfter=30,
-        textColor=colors.HexColor('#FF6B00')
+        textColor=colors.HexColor('#FF6B00'),
+        alignment=1,  # Centralizado
+        spaceAfter=30
     )
-    story.append(Paragraph("NEXO - Orçamento", title_style))
-    story.append(Spacer(1, 12))
+    
+    # Estilo para subtítulos
+    subtitulo_style = ParagraphStyle(
+        'SubtituloCustom',
+        parent=styles['Heading2'],
+        fontSize=16,
+        textColor=colors.black,
+        alignment=1,
+        spaceAfter=20
+    )
+    
+    # Cabeçalho
+    story.append(Paragraph("PRIMEIRA LINHA EVENTOS", titulo_style))
+    story.append(Paragraph("NEXO - Núcleo de Excelência Operacional", subtitulo_style))
+    story.append(Spacer(1, 20))
+    
+    # Linha separadora
+    story.append(Paragraph("<hr/>", styles['Normal']))
+    story.append(Spacer(1, 20))
+    
+    # Título do documento
+    story.append(Paragraph("ORÇAMENTO", titulo_style))
+    story.append(Spacer(1, 20))
     
     # Dados do cliente
-    story.append(Paragraph(f"<b>Cliente:</b> {dados_orcamento['cliente']}", styles['Normal']))
-    story.append(Paragraph(f"<b>Evento:</b> {dados_orcamento['evento']}", styles['Normal']))
-    story.append(Paragraph(f"<b>Data:</b> {dados_orcamento['data']}", styles['Normal']))
-    story.append(Spacer(1, 12))
+    cliente_data = [
+        ["Cliente:", dados['cliente']],
+        ["Evento:", dados['evento']],
+        ["Data:", dados['data']],
+        ["Local:", dados.get('local', 'Não informado')]
+    ]
+    
+    cliente_table = Table(cliente_data, colWidths=[2*inch, 4*inch])
+    cliente_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#FF6B00')),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.white),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 12),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('ROWBACKGROUNDS', (1, 0), (1, -1), [colors.white, colors.lightgrey])
+    ]))
+    
+    story.append(cliente_table)
+    story.append(Spacer(1, 30))
     
     # Tabela de itens
-    data = [['Item', 'Qtd', 'Diárias', 'Valor Unit.', 'Total']]
-    for item in dados_orcamento['itens']:
-        data.append([
+    story.append(Paragraph("ITENS DO ORÇAMENTO", subtitulo_style))
+    story.append(Spacer(1, 10))
+    
+    # Cabeçalho da tabela
+    table_data = [["Item", "Qtd", "Diárias", "Valor Unit.", "Total"]]
+    
+    # Itens
+    for item in dados['itens']:
+        table_data.append([
             item['produto'],
             str(item['quantidade']),
             str(item['diarias']),
@@ -447,28 +493,63 @@ def gerar_pdf_orcamento(dados_orcamento):
             f"R$ {item['total']:.2f}"
         ])
     
-    table = Table(data)
-    table.setStyle(TableStyle([
+    # Total
+    table_data.append(["", "", "", "TOTAL GERAL:", f"R$ {dados['total']:.2f}"])
+    
+    # Criar tabela
+    items_table = Table(table_data, colWidths=[3*inch, 0.8*inch, 0.8*inch, 1.2*inch, 1.2*inch])
+    items_table.setStyle(TableStyle([
+        # Cabeçalho
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#FF6B00')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 14),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        
+        # Itens
+        ('FONTNAME', (0, 1), (-1, -2), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -2), 10),
+        ('ALIGN', (1, 1), (-1, -2), 'CENTER'),
+        ('ALIGN', (0, 1), (0, -2), 'LEFT'),
+        
+        # Total
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#FF6B00')),
+        ('TEXTCOLOR', (0, -1), (-1, -1), colors.white),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, -1), (-1, -1), 12),
+        ('ALIGN', (0, -1), (-1, -1), 'CENTER'),
+        
+        # Bordas
+        ('GRID', (0, 0), (-1, -1), 1, colors.black),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        
+        # Cores alternadas nas linhas
+        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.lightgrey])
     ]))
     
-    story.append(table)
-    story.append(Spacer(1, 12))
+    story.append(items_table)
+    story.append(Spacer(1, 40))
     
-    # Total
-    story.append(Paragraph(f"<b>Total Geral: R$ {dados_orcamento['total']:.2f}</b>", styles['Heading2']))
+    # Rodapé
+    story.append(Paragraph("<hr/>", styles['Normal']))
+    story.append(Spacer(1, 10))
     
+    rodape_style = ParagraphStyle(
+        'RodapeCustom',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.grey,
+        alignment=1
+    )
+    
+    story.append(Paragraph("PRIMEIRA LINHA EVENTOS - NEXO", rodape_style))
+    story.append(Paragraph("Núcleo de Excelência Operacional", rodape_style))
+    story.append(Paragraph(f"Orçamento gerado em: {datetime.now().strftime('%d/%m/%Y às %H:%M')}", rodape_style))
+    
+    # Construir PDF
     doc.build(story)
     buffer.seek(0)
     return buffer
-
 # Interface Comercial
 def interface_comercial():
     st.title("NEXO - Comercial")
@@ -641,6 +722,9 @@ def interface_comercial():
             submitted = st.form_submit_button("Criar Pedido")
             
             if submitted and cliente and evento:
+                # Resetar contador de produtos para próximo pedido
+                st.session_state.num_produtos_pedido = 1
+                
                 novo_pedido = {
                     "id": len(st.session_state.pedidos) + 1,
                     "cliente": cliente,
@@ -3184,4 +3268,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-        
+
