@@ -644,7 +644,7 @@ def interface_comercial():
     elif opcao == "Novo Pedido":
         st.header("Novo Pedido")
         
-        with st.form("novo_pedido"):
+        with st.form("novo_pedido_form"):
             col1, col2 = st.columns(2)
             
             with col1:
@@ -660,26 +660,18 @@ def interface_comercial():
             
             # Seleção de produtos
             st.subheader("Produtos do Pedido")
-            produtos_selecionados = []
             
             # Sistema dinâmico de produtos (sem limitação)
             if 'num_produtos_pedido' not in st.session_state:
-                st.session_state.num_produtos_pedido = 1
-            
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.write("Adicione quantos produtos precisar:")
-            with col2:
-                if st.button("+ Adicionar Produto"):
-                    st.session_state.num_produtos_pedido += 1
-                    st.rerun()
+                st.session_state.num_produtos_pedido = 3
             
             # Carregar catálogo atualizado
             produtos_catalogo = carregar_catalogo_produtos()
+            produtos_selecionados = []
             
             for i in range(st.session_state.num_produtos_pedido):
                 st.markdown(f"**Produto {i+1}:**")
-                col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 1, 1])
+                col1, col2, col3, col4 = st.columns([3, 1, 1, 2])
                 
                 with col1:
                     produto = st.selectbox(f"Produto {i+1}", 
@@ -699,12 +691,6 @@ def interface_comercial():
                     else:
                         preco = st.number_input(f"Preço Unit.", value=0.0, key=f"preco_{i}")
                 
-                with col5:
-                    if st.button("🗑️", key=f"remove_{i}", help="Remover produto"):
-                        if st.session_state.num_produtos_pedido > 1:
-                            st.session_state.num_produtos_pedido -= 1
-                            st.rerun()
-                
                 if produto and quantidade > 0:
                     produtos_selecionados.append({
                         "produto": produto,
@@ -714,36 +700,53 @@ def interface_comercial():
                         "total": quantidade * diarias * preco
                     })
             
+            # Botões para adicionar/remover produtos
+            col1, col2 = st.columns(2)
+            with col1:
+                add_produto = st.form_submit_button("+ Adicionar Produto")
+            with col2:
+                remove_produto = st.form_submit_button("- Remover Produto")
+            
             # Classificação automática
             if data_evento:
                 regime = classificar_regime(str(data_evento))
                 st.info(f"Regime de Pagamento Classificado: **{regime}**")
             
-            submitted = st.form_submit_button("Criar Pedido")
+            # Botão principal
+            submitted = st.form_submit_button("✅ Criar Pedido", type="primary")
             
-            if submitted and cliente and evento:
-                # Resetar contador de produtos para próximo pedido
-                st.session_state.num_produtos_pedido = 1
-                
-                novo_pedido = {
-                    "id": len(st.session_state.pedidos) + 1,
-                    "cliente": cliente,
-                    "evento": evento,
-                    "data_evento": str(data_evento),
-                    "local": local,
-                    "contato": contato,
-                    "email": email,
-                    "observacoes": observacoes,
-                    "produtos": produtos_selecionados,
-                    "regime": regime,
-                    "status": "Pendente",
-                    "data_criacao": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "total": sum([p["total"] for p in produtos_selecionados])
-                }
-                
-                st.session_state.pedidos.append(novo_pedido)
-                st.success("Pedido criado com sucesso!")
-                st.rerun()
+        # Processar ações fora do formulário
+        if add_produto:
+            st.session_state.num_produtos_pedido += 1
+            st.rerun()
+        
+        if remove_produto and st.session_state.num_produtos_pedido > 1:
+            st.session_state.num_produtos_pedido -= 1
+            st.rerun()
+            
+        if submitted and cliente and evento:
+            # Resetar contador de produtos para próximo pedido
+            st.session_state.num_produtos_pedido = 3
+            
+            novo_pedido = {
+                "id": len(st.session_state.pedidos) + 1,
+                "cliente": cliente,
+                "evento": evento,
+                "data_evento": str(data_evento),
+                "local": local,
+                "contato": contato,
+                "email": email,
+                "observacoes": observacoes,
+                "produtos": produtos_selecionados,
+                "regime": regime if data_evento else "Padrão",
+                "status": "Pendente",
+                "data_criacao": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "total": sum([p["total"] for p in produtos_selecionados])
+            }
+            
+            st.session_state.pedidos.append(novo_pedido)
+            st.success("Pedido criado com sucesso!")
+            st.rerun()
     
     elif opcao == "Gestão de Pedidos":
         st.header("Gestão de Pedidos")
