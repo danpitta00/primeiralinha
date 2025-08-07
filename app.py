@@ -703,9 +703,9 @@ def interface_comercial():
             # Botões para adicionar/remover produtos
             col1, col2 = st.columns(2)
             with col1:
-                add_produto = st.form_submit_button("+ Adicionar Produto")
+                add_produto = st.form_submit_button("+ Adicionar Produto", key="add_produto_btn")
             with col2:
-                remove_produto = st.form_submit_button("- Remover Produto")
+                remove_produto = st.form_submit_button("- Remover Produto", key="remove_produto_btn")
             
             # Classificação automática
             if data_evento:
@@ -713,7 +713,7 @@ def interface_comercial():
                 st.info(f"Regime de Pagamento Classificado: **{regime}**")
             
             # Botão principal
-            submitted = st.form_submit_button("✅ Criar Pedido", type="primary")
+            submitted = st.form_submit_button("✅ Criar Pedido", type="primary", key="criar_pedido_btn")
             
         # Processar ações fora do formulário
         if add_produto:
@@ -1091,12 +1091,29 @@ def interface_logistica():
     elif opcao == "Gestão de Pedidos":
         st.header("Gestão de Pedidos - Logística")
         
-        # Pedidos vindos do comercial
-        pedidos_logistica = [p for p in st.session_state.pedidos if p['status'] in ['Na Logística', 'Pendente']]
+        # Filtros
+        col1, col2 = st.columns(2)
+        with col1:
+            filtro_status = st.selectbox("Filtrar por Status", 
+                                       ["Todos", "Na Logística", "Preparando", "No Campo", "Entregue", "Concluído"],
+                                       key="filtro_status_logistica")
+        with col2:
+            filtro_cliente = st.selectbox("Filtrar por Cliente", 
+                                        ["Todos"] + list(set([p['cliente'] for p in st.session_state.pedidos])),
+                                        key="filtro_cliente_logistica")
         
-        if pedidos_logistica:
-            for pedido in pedidos_logistica:
-                with st.expander(f"Pedido #{pedido['id']} - {pedido['cliente']} - {pedido['evento']}"):
+        # Pedidos vindos do comercial
+        pedidos_filtrados = st.session_state.pedidos
+        
+        if filtro_status != "Todos":
+            pedidos_filtrados = [p for p in pedidos_filtrados if p['status'] == filtro_status]
+        
+        if filtro_cliente != "Todos":
+            pedidos_filtrados = [p for p in pedidos_filtrados if p['cliente'] == filtro_cliente]
+        
+        if pedidos_filtrados:
+            for i, pedido in enumerate(pedidos_filtrados):
+                with st.expander(f"Pedido #{pedido['id']} - {pedido['cliente']} - {pedido['evento']} - Status: {pedido['status']}"):
                     col1, col2 = st.columns(2)
                     
                     with col1:
@@ -1110,24 +1127,30 @@ def interface_logistica():
                         st.write(f"**Contato:** {pedido['contato']}")
                         st.write(f"**E-mail:** {pedido['email']}")
                         st.write(f"**Total:** R$ {pedido['total']:.2f}")
-                        st.write(f"**Status:** {pedido['status']}")
+                        st.write(f"**Status Atual:** {pedido['status']}")
+                    
+                    # Produtos do pedido
+                    if pedido['produtos']:
+                        st.subheader("Produtos do Pedido:")
+                        df_produtos = pd.DataFrame(pedido['produtos'])
+                        st.dataframe(df_produtos, use_container_width=True)
                     
                     # Datas específicas de logística
-                    st.subheader("Datas Específicas de Logística")
+                    st.subheader("Configurações de Logística")
                     
                     col1, col2 = st.columns(2)
                     with col1:
-                        data_entrega = st.date_input(f"Data de Entrega", key=f"data_entrega_{pedido['id']}")
-                        hora_entrega = st.time_input(f"Hora de Entrega", key=f"hora_entrega_{pedido['id']}")
-                        responsavel_recepcao = st.text_input(f"Responsável pela Recepção", key=f"resp_recepcao_{pedido['id']}")
+                        data_entrega = st.date_input(f"Data de Entrega", key=f"data_entrega_log_{pedido['id']}_{i}")
+                        hora_entrega = st.time_input(f"Hora de Entrega", key=f"hora_entrega_log_{pedido['id']}_{i}")
+                        responsavel_recepcao = st.text_input(f"Responsável pela Recepção", key=f"resp_recepcao_log_{pedido['id']}_{i}")
                     
                     with col2:
-                        data_recolhimento = st.date_input(f"Data de Recolhimento", key=f"data_recolhimento_{pedido['id']}")
-                        hora_recolhimento = st.time_input(f"Hora de Recolhimento", key=f"hora_recolhimento_{pedido['id']}")
-                        responsavel_liberacao = st.text_input(f"Responsável pela Liberação", key=f"resp_liberacao_{pedido['id']}")
+                        data_recolhimento = st.date_input(f"Data de Recolhimento", key=f"data_recolhimento_log_{pedido['id']}_{i}")
+                        hora_recolhimento = st.time_input(f"Hora de Recolhimento", key=f"hora_recolhimento_log_{pedido['id']}_{i}")
+                        responsavel_liberacao = st.text_input(f"Responsável pela Liberação", key=f"resp_liberacao_log_{pedido['id']}_{i}")
                     
                     # Observações específicas
-                    observacoes_logistica = st.text_area(f"Observações da Logística", key=f"obs_log_{pedido['id']}")
+                    observacoes_logistica = st.text_area(f"Observações da Logística", key=f"obs_logistica_{pedido['id']}_{i}")
                     
                     # Alocação de equipes
                     st.subheader("Alocação de Equipes")
@@ -1142,7 +1165,7 @@ def interface_logistica():
                             equipe_entrega = st.multiselect(
                                 "Selecionar colaboradores para entrega",
                                 [e['nome'] for e in st.session_state.equipes if e['status'] == 'Disponível'],
-                                key=f"equipe_entrega_{pedido['id']}"
+                                key=f"equipe_entrega_log_{pedido['id']}_{i}"
                             )
                         
                         with col2:
@@ -1150,29 +1173,34 @@ def interface_logistica():
                             equipe_recolhimento = st.multiselect(
                                 "Selecionar colaboradores para recolhimento",
                                 [e['nome'] for e in st.session_state.equipes if e['status'] == 'Disponível'],
-                                key=f"equipe_recolhimento_{pedido['id']}"
+                                key=f"equipe_recolhimento_log_{pedido['id']}_{i}"
                             )
                     
-                    # Botões de ação
-                    col1, col2 = st.columns(2)
+                    # Ações do pedido
+                    st.subheader("Ações")
+                    col1, col2, col3 = st.columns(3)
                     
                     with col1:
-                        if st.button(f"Salvar Configurações", key=f"save_config_{pedido['id']}"):
-                            st.success("Configurações salvas!")
-                    
-                    with col2:
-                        if st.button(f"Enviar para Campo", key=f"send_campo_{pedido['id']}"):
-                            pedido['status'] = "No Campo"
-                            st.success("Pedido enviado para equipe de campo!")
+                        if st.button(f"📋 Preparar Pedido", key=f"preparar_pedido_{pedido['id']}_{i}"):
+                            pedido['status'] = "Preparando"
+                            st.success("Pedido marcado como 'Preparando'!")
                             st.rerun()
                     
-                    # Produtos do pedido
-                    if pedido['produtos']:
-                        st.subheader("Produtos do Pedido:")
-                        df_produtos = pd.DataFrame(pedido['produtos'])
-                        st.dataframe(df_produtos, use_container_width=True)
+                    with col2:
+                        if st.button(f"🚚 Enviar para Campo", key=f"enviar_campo_{pedido['id']}_{i}"):
+                            if equipe_entrega:
+                                pedido['status'] = "No Campo"
+                                pedido['equipe_entrega'] = equipe_entrega
+                                st.success("Pedido enviado para o campo!")
+                                st.rerun()
+                            else:
+                                st.error("Selecione uma equipe para entrega!")
+                    
+                    with col3:
+                        if st.button(f"📄 Gerar Documentos", key=f"gerar_docs_{pedido['id']}_{i}"):
+                            st.info("Documentos serão gerados na seção 'Documentos'")
         else:
-            st.info("Nenhum pedido na logística no momento.")
+            st.info("Nenhum pedido encontrado com os filtros selecionados.")
     
     elif opcao == "Gestão de Equipes":
         st.header("Gestão de Equipes")
@@ -1184,7 +1212,7 @@ def interface_logistica():
         # Adicionar novo colaborador
         st.subheader("Adicionar Novo Colaborador")
         
-        with st.form("novo_colaborador"):
+        with st.form("novo_colaborador_form"):
             col1, col2 = st.columns(2)
             
             with col1:
@@ -1200,7 +1228,7 @@ def interface_logistica():
                 status = st.selectbox("Status Inicial", ["Disponível", "Ocupado", "Férias", "Afastado"])
                 observacoes = st.text_area("Observações")
             
-            submitted = st.form_submit_button("Adicionar Colaborador")
+            submitted = st.form_submit_button("✅ Adicionar Colaborador", type="primary")
             
             if submitted and nome:
                 novo_colaborador = {
@@ -1224,7 +1252,7 @@ def interface_logistica():
         st.subheader("Equipe Atual")
         
         if st.session_state.equipes:
-            for colaborador in st.session_state.equipes:
+            for i, colaborador in enumerate(st.session_state.equipes):
                 with st.expander(f"{colaborador['nome']} - {colaborador['especialidade']} ({colaborador['status']})"):
                     col1, col2, col3 = st.columns(3)
                     
@@ -1247,7 +1275,66 @@ def interface_logistica():
                             "Alterar Status",
                             ["Disponível", "Ocupado", "Férias", "Afastado"],
                             index=["Disponível", "Ocupado", "Férias", "Afastado"].index(colaborador['status']),
-                            key=f"status_{colaborador['id']}"
+                            key=f"status_equipe_{colaborador['id']}_{i}"
+                        )
+                        
+                        if novo_status != colaborador['status']:
+                            colaborador['status'] = novo_status
+                            st.success("Status atualizado!")
+                            st.rerun()
+                    
+                    # Botões de ação
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        if st.button(f"✏️ Editar", key=f"edit_colaborador_{colaborador['id']}_{i}"):
+                            st.session_state[f'editing_{colaborador["id"]}'] = True
+                            st.rerun()
+                    
+                    with col2:
+                        if st.button(f"🗑️ Excluir", key=f"delete_colaborador_{colaborador['id']}_{i}"):
+                            st.session_state.equipes.remove(colaborador)
+                            st.success("Colaborador removido!")
+                            st.rerun()
+                    
+                    # Formulário de edição
+                    if st.session_state.get(f'editing_{colaborador["id"]}', False):
+                        st.subheader("Editar Colaborador")
+                        
+                        with st.form(f"edit_form_{colaborador['id']}"):
+                            col1, col2 = st.columns(2)
+                            
+                            with col1:
+                                novo_nome = st.text_input("Nome", value=colaborador['nome'])
+                                nova_especialidade = st.selectbox("Especialidade", 
+                                                                ["Montagem", "Elétrica", "Logística", "Decoração", 
+                                                                 "Supervisão", "Som e Luz", "Segurança", "Limpeza"],
+                                                                index=["Montagem", "Elétrica", "Logística", "Decoração", 
+                                                                       "Supervisão", "Som e Luz", "Segurança", "Limpeza"].index(colaborador['especialidade']))
+                                novo_telefone = st.text_input("Telefone", value=colaborador['telefone'])
+                            
+                            with col2:
+                                novo_email = st.text_input("E-mail", value=colaborador['email'])
+                                novas_observacoes = st.text_area("Observações", value=colaborador['observacoes'])
+                            
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if st.form_submit_button("💾 Salvar Alterações"):
+                                    colaborador['nome'] = novo_nome
+                                    colaborador['especialidade'] = nova_especialidade
+                                    colaborador['telefone'] = novo_telefone
+                                    colaborador['email'] = novo_email
+                                    colaborador['observacoes'] = novas_observacoes
+                                    st.session_state[f'editing_{colaborador["id"]}'] = False
+                                    st.success("Colaborador atualizado!")
+                                    st.rerun()
+                            
+                            with col2:
+                                if st.form_submit_button("❌ Cancelar"):
+                                    st.session_state[f'editing_{colaborador["id"]}'] = False
+                                    st.rerun()
+        else:
+            st.info("Nenhum colaborador cadastrado. Adicione colaboradores usando o formulário acima.")
                         )
                         
                         if st.button(f"Atualizar Status", key=f"update_{colaborador['id']}"):
