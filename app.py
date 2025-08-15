@@ -1335,17 +1335,6 @@ def interface_logistica():
                                     st.rerun()
         else:
             st.info("Nenhum colaborador cadastrado. Adicione colaboradores usando o formulário acima.")
-                        )
-                        
-                        if st.button(f"Atualizar Status", key=f"update_{colaborador['id']}"):
-                            colaborador['status'] = novo_status
-                            st.success("Status atualizado!")
-                            st.rerun()
-                    
-                    if colaborador['observacoes']:
-                        st.write(f"**Observações:** {colaborador['observacoes']}")
-        else:
-            st.info("Nenhum colaborador cadastrado. Adicione colaboradores para começar a formar sua equipe.")
     
     elif opcao == "Tarefas de Galpão":
         st.header("Tarefas de Galpão")
